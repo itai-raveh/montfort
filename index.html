@@ -86,6 +86,11 @@ setTimeout(function(){
     background:rgba(20,17,13,.8);border:1px solid rgba(238,230,214,.2);border-radius:10px;padding:18px 26px;
     font-size:13px;color:#eee6d6;max-width:420px;line-height:1.5;transition:opacity .5s}
   #status small{display:block;color:#cfc5ad;font-size:11.5px;margin-top:6px}
+  #vert-badge{position:fixed;top:88px;left:50%;transform:translateX(-50%);z-index:7;opacity:0;
+    transition:opacity .2s;pointer-events:none;font-size:11.5px;letter-spacing:.03em;color:#14110c;
+    background:rgba(255,255,255,.92);padding:6px 14px;border-radius:999px}
+  #view.vert{cursor:ns-resize}
+  #view.vert.drag{cursor:grabbing}
   #hint{position:fixed;bottom:146px;left:50%;transform:translateX(-50%);color:rgba(238,230,214,.6);font-size:11px;z-index:6;pointer-events:none;transition:opacity .6s;opacity:0}
   @media (max-width:700px){
     #title p{display:none} #layers{bottom:150px} #attrib{display:none} #calib{width:220px;bottom:150px}
@@ -104,7 +109,8 @@ setTimeout(function(){
 <div id="compass"><svg viewBox="0 0 54 54"><g id="needle"><polygon points="27,8 31,27 27,25 23,27" fill="#e9c66f"/><polygon points="27,46 31,27 27,29 23,27" fill="rgba(238,230,214,.35)"/></g><text x="27" y="15" text-anchor="middle" font-size="9" fill="#f2ead9" font-family="Helvetica Neue,Helvetica,Arial,sans-serif">N</text></svg></div>
 
 <div id="status">Loading terrain and imagery…<small id="progress"></small></div>
-<div id="hint">drag to orbit · scroll to zoom · space / shift+space to move up and down</div>
+<div id="vert-badge">up / down mode · drag to raise and lower · space to exit</div>
+<div id="hint">drag to orbit · scroll to zoom · space toggles up / down mode</div>
 
 <div id="hud">
   <div id="switch" role="tablist" aria-label="Period">
@@ -1327,7 +1333,7 @@ function panBy(dxPx, dyPx){
 }
 view.addEventListener('contextmenu', e=>e.preventDefault());
 view.addEventListener('pointerdown', e=>{
-  dragging = true; panning = (e.button === 2 || e.button === 1 || e.shiftKey);
+  dragging = true; panning = (vertMode || e.button === 2 || e.button === 1 || e.shiftKey);
   lx=e.clientX; ly=e.clientY; view.classList.add('drag'); hint.style.opacity='0';
 });
 addEventListener('pointerup', ()=>{ dragging=false; panning=false; view.classList.remove('drag'); });
@@ -1335,31 +1341,27 @@ addEventListener('pointermove', e=>{
   if(!dragging) return;
   const dx = e.clientX-lx, dy = e.clientY-ly;
   lx=e.clientX; ly=e.clientY;
-  if (panning){ panBy(dx, dy); return; }
+  if (panning){ panBy(vertMode ? 0 : dx, dy); return; }
   theta -= dx*0.0055;
   phi = Math.min(PHI_MAX, Math.max(PHI_MIN, phi-dy*0.0045));
   updateCamera();
 });
-// Vertical control: space raises the view, shift+space lowers it. Held down it
-// moves continuously, which is what you want when tracking up a 30 m wall.
-const keyHeld = { up:false, down:false };
+// Space TOGGLES an up/down move mode, Google Earth style: while it is on,
+// dragging raises and lowers the view instead of orbiting it.
+let vertMode = false;
+function setVertMode(on){
+  vertMode = on;
+  view.classList.toggle('vert', on);
+  const b = document.getElementById('vert-badge');
+  if (b) b.style.opacity = on ? '1' : '0';
+}
 addEventListener('keydown', e=>{
   const step = 40;
-  if (e.code === 'Space'){
-    if (e.shiftKey) keyHeld.down = true; else keyHeld.up = true;
-    e.preventDefault(); return;
-  }
+  if (e.code === 'Space'){ setVertMode(!vertMode); e.preventDefault(); return; }
+  if (e.key === 'Escape' && vertMode){ setVertMode(false); return; }
   if (e.key==='ArrowUp'   || e.key==='PageUp')   { panBy(0,  step); e.preventDefault(); }
   if (e.key==='ArrowDown' || e.key==='PageDown') { panBy(0, -step); e.preventDefault(); }
 });
-addEventListener('keyup', e=>{
-  if (e.code === 'Space'){ keyHeld.up = false; keyHeld.down = false; e.preventDefault(); }
-});
-addEventListener('blur', ()=>{ keyHeld.up = false; keyHeld.down = false; });
-function tickKeys(){
-  if (keyHeld.up)   panBy(0,  6);
-  if (keyHeld.down) panBy(0, -6);
-}
 view.addEventListener('wheel', e=>{ e.preventDefault(); radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+e.deltaY*0.0012))); updateCamera(); }, {passive:false});
 view.addEventListener('touchmove', e=>{
   if(e.touches.length===2){
@@ -1436,7 +1438,7 @@ async function boot(){
   }
   setTimeout(()=>hint.style.opacity='1', 800); setTimeout(()=>hint.style.opacity='0', 6000);
 }
-function animate(){ requestAnimationFrame(animate); tickKeys(); updateLabels(); renderer.render(scene, camera); }
+function animate(){ requestAnimationFrame(animate); updateLabels(); renderer.render(scene, camera); }
 updateCamera(); animate(); boot();
 </script>
 </body>
