@@ -22,14 +22,14 @@ setTimeout(function(){
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{width:100%;height:100%;overflow:hidden;background:#141a1f;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#eee6d6}
+    font-family:"Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif;color:#eee6d6}
   #view{position:fixed;inset:0;cursor:grab}
   #view.drag{cursor:grabbing}
   canvas{display:block}
 
   /* title */
   #title{position:fixed;top:20px;left:24px;z-index:6;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.55)}
-  #title h1{font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;font-weight:500;font-size:25px;letter-spacing:.01em}
+  #title h1{font-family:"Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif;font-weight:300;font-size:25px;letter-spacing:.02em}
   #title p{font-size:12px;color:#cfc5ad;max-width:360px;line-height:1.45;margin-top:3px}
 
   /* compass */
@@ -39,26 +39,22 @@ setTimeout(function(){
 
   /* labels */
   #labels{position:fixed;inset:0;pointer-events:none;z-index:5}
-  .tag{position:absolute;transform:translate(-50%,-100%);font-size:11.5px;color:#f2ead9;
-    background:rgba(20,17,13,.6);padding:3px 8px;border-radius:3px;white-space:nowrap;
-    border:1px solid rgba(238,230,214,.18)}
-  .tag::after{content:'';position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:1px;height:6px;background:rgba(238,230,214,.45)}
+  .tag{position:absolute;transform:translate(-50%,-100%);font-size:11.5px;font-weight:400;color:#fff;
+    letter-spacing:.03em;white-space:nowrap;text-shadow:0 1px 8px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.6)}
+  .tag::after{content:'';position:absolute;left:50%;bottom:-38px;transform:translateX(-50%);
+    width:1px;height:38px;background:linear-gradient(to bottom,rgba(255,255,255,.75),rgba(255,255,255,.15))}
 
   /* bottom hud */
-  #hud{position:fixed;left:0;right:0;bottom:22px;z-index:6;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
-  #era{font-size:13px;letter-spacing:.02em;text-shadow:0 2px 8px rgba(0,0,0,.6);min-height:18px;text-align:center;padding:0 16px}
-  #era b{color:#e9c66f;font-weight:600}
-  #timeline{pointer-events:auto;width:min(560px,86vw);background:rgba(20,17,13,.66);border:1px solid rgba(238,230,214,.16);
-    border-radius:10px;padding:14px 22px 12px;backdrop-filter:blur(6px)}
-  #track{position:relative;height:4px;border-radius:2px;background:rgba(238,230,214,.22);margin:10px 4px 8px}
-  #fill{position:absolute;left:0;top:0;height:100%;border-radius:2px;background:linear-gradient(90deg,#8a6a2f,#e9c66f);transition:width .35s ease}
-  .stop{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;
-    background:#1c1712;border:2px solid rgba(238,230,214,.4);transition:transform .2s,background .25s,border-color .25s}
-  .stop:hover{transform:translate(-50%,-50%) scale(1.15)}
-  .stop.on{background:#e9c66f;border-color:#e9c66f}
-  #tl-labels{display:flex;justify-content:space-between}
-  #tl-labels span{font-size:11px;color:#cfc5ad;cursor:pointer;user-select:none}
-  #tl-labels span.on{color:#f2ead9;font-weight:600}
+  #hud{position:fixed;left:0;right:0;bottom:22px;z-index:6;display:flex;justify-content:center;pointer-events:none}
+  #switch{position:relative;display:flex;pointer-events:auto;background:rgba(20,17,13,.62);
+    border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px;backdrop-filter:blur(8px)}
+  #switch-thumb{position:absolute;top:4px;left:4px;height:calc(100% - 8px);width:calc(50% - 4px);
+    border-radius:999px;background:rgba(255,255,255,.92);transition:transform .28s cubic-bezier(.4,0,.2,1)}
+  #switch.right #switch-thumb{transform:translateX(100%)}
+  .opt{position:relative;z-index:1;min-width:116px;padding:8px 18px;border:0;background:none;cursor:pointer;
+    font:inherit;font-size:12.5px;letter-spacing:.03em;color:rgba(255,255,255,.75);
+    transition:color .28s;border-radius:999px}
+  .opt.on{color:#14110c;font-weight:500}
 
   /* layer buttons */
   #layers{position:fixed;right:22px;bottom:22px;z-index:7;display:flex;flex-direction:column;gap:6px}
@@ -81,9 +77,10 @@ setTimeout(function(){
   #calib p{color:#b9af98;margin-top:6px;line-height:1.4}
 
   /* attribution + status */
-  #conditions{position:fixed;left:22px;bottom:40px;z-index:6;font-size:11.5px;color:rgba(238,230,214,.85);
-    pointer-events:none;letter-spacing:.02em;text-shadow:0 1px 6px rgba(0,0,0,.7)}
-  #attrib{position:fixed;left:22px;bottom:22px;z-index:6;font-size:10.5px;color:rgba(238,230,214,.6);pointer-events:none;max-width:52vw}
+  #readout{position:fixed;left:22px;bottom:20px;z-index:6;max-width:30vw;pointer-events:none}
+  #conditions{font-size:11.5px;color:rgba(255,255,255,.9);letter-spacing:.02em;
+    text-shadow:0 1px 6px rgba(0,0,0,.85);line-height:1.5;margin-bottom:4px}
+  #attrib{font-size:10px;color:rgba(255,255,255,.55);line-height:1.5;text-shadow:0 1px 6px rgba(0,0,0,.8)}
   #attrib.hide{display:none}
   #status{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;text-align:center;
     background:rgba(20,17,13,.8);border:1px solid rgba(238,230,214,.2);border-radius:10px;padding:18px 26px;
@@ -104,21 +101,18 @@ setTimeout(function(){
   <p>Massing reconstruction on real terrain. Dimensions from the published surveys and excavations (Rey 1871 to Boas &amp; Khamisy 2016). Undocumented parts simplified.</p>
 </div>
 
-<div id="compass"><svg viewBox="0 0 54 54"><g id="needle"><polygon points="27,8 31,27 27,25 23,27" fill="#e9c66f"/><polygon points="27,46 31,27 27,29 23,27" fill="rgba(238,230,214,.35)"/></g><text x="27" y="15" text-anchor="middle" font-size="9" fill="#f2ead9" font-family="Georgia,serif">N</text></svg></div>
+<div id="compass"><svg viewBox="0 0 54 54"><g id="needle"><polygon points="27,8 31,27 27,25 23,27" fill="#e9c66f"/><polygon points="27,46 31,27 27,29 23,27" fill="rgba(238,230,214,.35)"/></g><text x="27" y="15" text-anchor="middle" font-size="9" fill="#f2ead9" font-family="Helvetica Neue,Helvetica,Arial,sans-serif">N</text></svg></div>
 
 <div id="status">Loading terrain and imagery…<small id="progress"></small></div>
-<div id="hint">drag to orbit · scroll or pinch to zoom</div>
+<div id="hint">drag to orbit · scroll to zoom · right-drag or shift-drag to move up and down</div>
 
 <div id="hud">
-  <div id="era"></div>
-  <div id="timeline">
-    <div id="track">
-      <div id="fill"></div>
-      <div class="stop" data-i="0" style="left:0%"></div>
-      <div class="stop" data-i="1" style="left:100%"></div>
-    </div>
-    <div id="tl-labels"><span data-i="0">c. 1240 — height of the Order</span><span data-i="1">today — the ruin</span></div>
+  <div id="switch" role="tablist" aria-label="Period">
+    <div id="switch-thumb"></div>
+    <button class="opt on" data-i="0" role="tab" aria-selected="true">c. 1240</button>
+    <button class="opt"    data-i="1" role="tab" aria-selected="false">Today</button>
   </div>
+</div>
 </div>
 
 <div id="layers">
@@ -145,8 +139,10 @@ setTimeout(function(){
   <p>Match the keep and the long range to the wall lines visible in the imagery, then paste these values into CFG at the top of the script.</p>
 </div>
 
+<div id="readout">
 <div id="conditions"></div>
 <div id="attrib">Imagery © Esri, Maxar, Earthstar Geographics and the GIS user community · Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL) · Weather: Open-Meteo (CC BY 4.0)</div>
+</div>
 
 <script>
 /* ============================================================
@@ -858,6 +854,59 @@ function crenellatePolyline(pts, topYFn, opts){
     crenellateEdge(u1,v1,u2,v2, topYFn((u1+u2)/2,(v1+v2)/2), opts);
   }
 }
+/* A parapet walked as ONE continuous loop around the perimeter, so merlons are
+   evenly spaced and corners never receive two overlapping blocks — which is what
+   made the gate-tower head read as a jumble when each edge was crenellated
+   independently. A low solid band under the merlons ties them together. */
+function parapetRect(state, u, v, su, sv, topY, rot, opts){
+  opts = opts || {}; rot = rot || 0;
+  const mW=opts.mW||1.05, gap=opts.gap||0.95, mH=opts.mH||1.35, mD=opts.mD||0.85;
+  const bandH = opts.bandH==null ? 0.45 : opts.bandH;
+  const hw=su/2, hd=sv/2;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const rp=(x,z)=>[u + x*c - z*s, v + x*s + z*c];
+  const corners=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([x,z])=>rp(x,z));
+  const mat = stoneMaterial(state), edgeMat = state==='peak'?edgePeak:edgeRuin;
+
+  // solid band the merlons stand on
+  if (bandH > 0){
+    const g = groups[state];
+    [[su, mD, 0, -hd],[su, mD, 0, hd],[mD, sv, -hw, 0],[mD, sv, hw, 0]].forEach(([bw,bd,ox,oz])=>{
+      const geo = new THREE.BoxGeometry(bw, bandH, bd);
+      const [wu,wv] = rp(ox,oz);
+      const m = new THREE.Mesh(geo, mat); m.castShadow=m.receiveShadow=true;
+      m.position.set(wu, topY+bandH/2, wv); m.rotation.y = rot; g.add(m);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), edgeMat);
+      ed.position.copy(m.position); ed.rotation.y = rot; g.add(ed);
+    });
+  }
+  const base = topY + bandH;
+
+  const segs=[];
+  for(let i=0;i<4;i++){
+    const a=corners[i], b=corners[(i+1)%4];
+    segs.push({a,b,len:Math.hypot(b[0]-a[0], b[1]-a[1])});
+  }
+  const perim = segs.reduce((t,x)=>t+x.len, 0);
+  const n = Math.max(4, Math.round(perim/(mW+gap)));
+  const step = perim/n;
+  const w = Math.min(mW, step*0.60);
+  for(let i=0;i<n;i++){
+    let d=(i+0.5)*step, k=0;
+    while(k<3 && d>segs[k].len){ d-=segs[k].len; k++; }
+    const sg=segs[k], t=Math.min(1, d/sg.len);
+    const wu = sg.a[0] + (sg.b[0]-sg.a[0])*t;
+    const wv = sg.a[1] + (sg.b[1]-sg.a[1])*t;
+    const ang = Math.atan2(sg.b[1]-sg.a[1], sg.b[0]-sg.a[0]);
+    const geo = new THREE.BoxGeometry(w, mH, mD);
+    const m = new THREE.Mesh(geo, mat); m.castShadow=m.receiveShadow=true;
+    m.position.set(wu, base+mH/2, wv); m.rotation.y = -ang;
+    groups[state].add(m);
+    const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), edgeMat);
+    ed.position.copy(m.position); ed.rotation.y = -ang; groups[state].add(ed);
+  }
+}
+
 function crenellateRect(u, v, su, sv, topY, skip, rot, opts){
   skip = skip||{}; rot = rot||0;
   const hw=su/2, hd=sv/2;
@@ -1139,8 +1188,8 @@ function placeBuildings(){
   gableRoof(-25, -0.5, 23, 16, 32, 6.5, 0);      // western wing
 
   // CRENELLATIONS — flat fighting platforms on every defensive element
-  crenellateRect(40, 0, 15, 20, topYOf(40,0,24), {east:true}, 0, {mD:1.3});   // keep (apse left smooth)
-  crenellateRect(-46, -17.4, 7, 6.95, topYOf(-46,-17.4,17), {}, 0.12, {mW:0.9, gap:0.8, mD:0.9});  // gate tower
+  parapetRect('peak', 40, 0, 15, 20, topYOf(40,0,24), 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
+  parapetRect('peak', -46, -17.4, 7, 6.95, topYOf(-46,-17.4,17), 0.12, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
   crenellateRing(-20, 20, 4.2, topYOf(-20,20,4.5), 14);                      // round tower, above the talus
   crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
   crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
@@ -1189,6 +1238,7 @@ const labelLayer = document.getElementById('labels');
 function rebuildLabels(){
   labelLayer.innerHTML = ''; labelEls = labelDefs.map(d=>{ const el=document.createElement('div'); el.className='tag'; el.textContent=d.text; labelLayer.appendChild(el); return {el, pos:d.pos}; });
 }
+const LABEL_LEAD = 38;   // px the tag floats above its anchor; matches the CSS leader
 function updateLabels(){
   const w=innerWidth, h=innerHeight;
   labelEls.forEach(l=>{
@@ -1196,8 +1246,12 @@ function updateLabels(){
     const v = l.pos.clone().project(camera);
     const behind = v.z > 1;
     const dist = camera.position.distanceTo(l.pos);
-    l.el.style.display = (behind || dist > 1100) ? 'none' : 'block';
-    l.el.style.left = ((v.x*0.5+0.5)*w)+'px'; l.el.style.top = ((-v.y*0.5+0.5)*h)+'px';
+    const x = (v.x*0.5+0.5)*w, y = (-v.y*0.5+0.5)*h;
+    const off = behind || dist > 1100 || x < -80 || x > w+80 || y < -40 || y > h+120;
+    l.el.style.display = off ? 'none' : 'block';
+    if (off) return;
+    l.el.style.left = x+'px';
+    l.el.style.top  = (y - LABEL_LEAD)+'px';
   });
 }
 
@@ -1211,31 +1265,70 @@ function updateCamera(){
   const needle = document.getElementById('needle');
   if (needle) needle.setAttribute('transform', `rotate(${theta*180/Math.PI} 27 27)`);
 }
-let dragging=false, lx=0, ly=0, pinch=null;
-view.addEventListener('pointerdown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; view.classList.add('drag'); hint.style.opacity='0'; });
-addEventListener('pointerup', ()=>{ dragging=false; view.classList.remove('drag'); });
-addEventListener('pointermove', e=>{ if(!dragging) return; theta -= (e.clientX-lx)*0.0055; phi = Math.min(PHI_MAX, Math.max(PHI_MIN, phi-(e.clientY-ly)*0.0045)); lx=e.clientX; ly=e.clientY; updateCamera(); });
+let dragging=false, panning=false, lx=0, ly=0, pinch=null, pinchMid=null;
+function panBy(dxPx, dyPx){
+  // move the orbit target in the camera's own screen plane, scaled by distance
+  const k = radius * 0.0016;
+  const right = new THREE.Vector3(Math.cos(theta), 0, -Math.sin(theta));
+  const upAmt = dyPx * k;
+  target.addScaledVector(right, -dxPx * k);
+  target.y += upAmt;
+  target.y = Math.max(-120, Math.min(400, target.y));
+  updateCamera();
+}
+view.addEventListener('contextmenu', e=>e.preventDefault());
+view.addEventListener('pointerdown', e=>{
+  dragging = true; panning = (e.button === 2 || e.button === 1 || e.shiftKey);
+  lx=e.clientX; ly=e.clientY; view.classList.add('drag'); hint.style.opacity='0';
+});
+addEventListener('pointerup', ()=>{ dragging=false; panning=false; view.classList.remove('drag'); });
+addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx = e.clientX-lx, dy = e.clientY-ly;
+  lx=e.clientX; ly=e.clientY;
+  if (panning){ panBy(dx, dy); return; }
+  theta -= dx*0.0055;
+  phi = Math.min(PHI_MAX, Math.max(PHI_MIN, phi-dy*0.0045));
+  updateCamera();
+});
+addEventListener('keydown', e=>{
+  const step = 40;
+  if (e.key==='ArrowUp'   || e.key==='PageUp')   { panBy(0,  step); e.preventDefault(); }
+  if (e.key==='ArrowDown' || e.key==='PageDown') { panBy(0, -step); e.preventDefault(); }
+});
 view.addEventListener('wheel', e=>{ e.preventDefault(); radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+e.deltaY*0.0012))); updateCamera(); }, {passive:false});
-view.addEventListener('touchmove', e=>{ if(e.touches.length===2){ const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); if(pinch!==null){ radius=Math.min(R_MAX,Math.max(R_MIN,radius*(1+(pinch-d)*0.004))); updateCamera(); } pinch=d; } }, {passive:true});
-view.addEventListener('touchend', ()=>{ pinch=null; });
+view.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    const [a,b] = [e.touches[0], e.touches[1]];
+    const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const mid = { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
+    if(pinch!==null){
+      radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+(pinch-d)*0.004)));
+      if (pinchMid) panBy(mid.x-pinchMid.x, mid.y-pinchMid.y);   // two-finger drag pans
+      updateCamera();
+    }
+    pinch=d; pinchMid=mid;
+  }
+}, {passive:true});
+view.addEventListener('touchend', ()=>{ pinch=null; pinchMid=null; });
 addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
 
 /* ---------- timeline ---------- */
-const eras = [
-  'Circa <b>1240</b> — the castle complete, principal fortress of the Teutonic Order in the Latin East.',
-  '<b>Today</b> — dismantled by Baybars\' army over twelve days in July 1271; largely undisturbed since.'
-];
+/* ---------- period switch ---------- */
 let currentEra = 0;
 function setEra(i){
   currentEra = i;
   groups.peak.visible = millGroups.peak.visible = (i===0);
   groups.ruin.visible = millGroups.ruin.visible = (i===1);
-  document.getElementById('era').innerHTML = eras[i];
-  document.getElementById('fill').style.width = i===0 ? '0%' : '100%';
-  document.querySelectorAll('.stop').forEach(s=>s.classList.toggle('on', +s.dataset.i===i));
-  document.querySelectorAll('#tl-labels span').forEach(s=>s.classList.toggle('on', +s.dataset.i===i));
+  const sw = document.getElementById('switch');
+  if (sw) sw.classList.toggle('right', i===1);
+  document.querySelectorAll('.opt').forEach(b=>{
+    const on = +b.dataset.i === i;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
 }
-document.querySelectorAll('.stop, #tl-labels span').forEach(el=>el.addEventListener('click', ()=>setEra(+el.dataset.i)));
+document.querySelectorAll('.opt').forEach(b=>b.addEventListener('click', ()=>setEra(+b.dataset.i)));
 
 /* ---------- layers + calibration ---------- */
 let showImagery = true, showLabels = true;
