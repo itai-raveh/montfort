@@ -411,6 +411,85 @@ function wall(state, pts, h, thick, ruinPattern){
   }
 }
 
+/* ---------- silhouette detail: roofs + crenellations (peak state only) ----------
+   Domestic ranges (central range, western wing) get pitched timber roofs — precedent
+   in Lindemann's 1938 reconstruction (Ch.5, Plate 5.18) and the dendro evidence for
+   structural pine/cypress timber (Ch.22). Defensive elements (keep, outer wall, gate
+   tower, corner tower) get flat crenellated fighting platforms, not pointed caps —
+   the standard Crusader military-architecture roofline, not a storybook one. */
+const roofMat = new THREE.MeshStandardMaterial({ color:0x7a5233, roughness:0.85, metalness:0.02, side:THREE.DoubleSide });
+const roofEdgeMat = new THREE.LineBasicMaterial({ color:0x2e2013, transparent:true, opacity:0.5 });
+
+function topYOf(u,v,h){ const {e,n} = fromFrame(u,v); return groundAt(e,n) + CFG.offsetUp + h; }
+
+function gableRoof(u, v, su, sv, wallH, ridgeH, rot, overhangEnd, overhangSide){
+  overhangEnd = overhangEnd || 0.4; overhangSide = overhangSide || 0.7;
+  const hw = su/2+overhangEnd, hd = sv/2+overhangSide;
+  const Lf=[-hw,0,-hd], Lb=[-hw,0,hd], Lr=[-hw,ridgeH,0], Rf=[hw,0,-hd], Rb=[hw,0,hd], Rr=[hw,ridgeH,0];
+  const tris = [Lf,Rf,Rr, Lf,Rr,Lr, Rb,Lb,Lr, Rb,Lr,Rr, Lf,Lr,Lb, Rb,Rr,Rf];
+  const pos = new Float32Array(tris.length*3);
+  tris.forEach((p,i)=>{ pos[i*3]=p[0]; pos[i*3+1]=p[1]; pos[i*3+2]=p[2]; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.computeVertexNormals();
+  const eaveY = topYOf(u,v,wallH);
+  const mesh = new THREE.Mesh(geo, roofMat); mesh.castShadow = mesh.receiveShadow = true;
+  mesh.position.set(u, eaveY, v); mesh.rotation.y = rot||0; groups.peak.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), roofEdgeMat);
+  edges.position.copy(mesh.position); edges.rotation.y = rot||0; groups.peak.add(edges);
+}
+
+function crenellateEdge(u1, v1, u2, v2, topY, opts){
+  opts = opts||{};
+  const mW=opts.mW||1.1, gap=opts.gap||1.0, mH=opts.mH||1.3, mD=opts.mD||0.9;
+  const du=u2-u1, dv=v2-v1, len=Math.hypot(du,dv);
+  if (len < 0.5) return;
+  const ang = Math.atan2(dv,du);
+  const period = mW+gap, n = Math.max(1, Math.floor(len/period));
+  const usedLen = n*period, startOff = (len-usedLen)/2 + mW/2;
+  for (let i=0;i<n;i++){
+    const t = (startOff + i*period)/len;
+    const uu = u1+du*t, vv = v1+dv*t;
+    const geo = new THREE.BoxGeometry(mW, mH, mD);
+    const mesh = new THREE.Mesh(geo, matPeak); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -ang; groups.peak.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
+    edges.position.copy(mesh.position); edges.rotation.y = -ang; groups.peak.add(edges);
+  }
+}
+function crenellatePolyline(pts, topYFn, opts){
+  for (let i=0;i<pts.length-1;i++){
+    const [u1,v1]=pts[i], [u2,v2]=pts[i+1];
+    crenellateEdge(u1,v1,u2,v2, topYFn((u1+u2)/2,(v1+v2)/2), opts);
+  }
+}
+function crenellateRect(u, v, su, sv, topY, skip, rot, opts){
+  skip = skip||{}; rot = rot||0;
+  const hw=su/2, hd=sv/2;
+  const raw = { north:[-hw,-hd,hw,-hd], south:[-hw,hd,hw,hd], west:[-hw,-hd,-hw,hd], east:[hw,-hd,hw,hd] };
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const rp = (x,z) => [u + x*c - z*s, v + x*s + z*c];
+  Object.keys(raw).forEach(k=>{
+    if (skip[k]) return;
+    const [x1,z1,x2,z2] = raw[k];
+    const [u1,v1]=rp(x1,z1), [u2,v2]=rp(x2,z2);
+    crenellateEdge(u1,v1,u2,v2, topY, opts);
+  });
+}
+function crenellateRing(u, v, r, topY, count){
+  count = count||16;
+  const mW = (2*Math.PI*r/count)*0.85, mD=0.8, mH=1.2;
+  for (let i=0;i<count;i+=2){
+    const amid = ((i+0.5)/count)*Math.PI*2;
+    const uu = u+Math.cos(amid)*r, vv = v+Math.sin(amid)*r;
+    const geo = new THREE.BoxGeometry(mW, mH, mD);
+    const mesh = new THREE.Mesh(geo, matPeak); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -(amid+Math.PI/2); groups.peak.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
+    edges.position.copy(mesh.position); edges.rotation.y = -(amid+Math.PI/2); groups.peak.add(edges);
+  }
+}
+
 function placeBuildings(){
   ['peak','ruin'].forEach(k=>{ const g=groups[k]; while(g.children.length) g.remove(g.children[0]); });
   const b = (90-CFG.axisBearing)*DEG;
@@ -460,6 +539,16 @@ function placeBuildings(){
   const outer = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
   wall('peak', outer, 5.5, 1.5, false);
   wall('ruin', outer, 5.5, 1.5, true);
+
+  // ROOFS — pitched, timber-framed, domestic ranges only
+  gableRoof(9.5, 0.5, 46, 14, 17, 4.5, 0);       // central range
+  gableRoof(-25, -0.5, 23, 16, 32, 6.5, 0);      // western wing
+
+  // CRENELLATIONS — flat fighting platforms on every defensive element
+  crenellateRect(40, 0, 15, 20, topYOf(40,0,24), {east:true}, 0, {mD:1.3});   // keep (apse left smooth)
+  crenellateRect(-46, -17, 7, 7, topYOf(-46,-17,17), {}, 0.12, {mW:0.9, gap:0.8, mD:0.9});  // gate tower
+  crenellateRing(-20, 20, 4.2, topYOf(-20,20,10), 14);                        // corner tower
+  crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
 
   // labels (world anchors)
   labelDefs = [
