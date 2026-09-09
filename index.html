@@ -962,7 +962,9 @@ function placeBuildings(){
 
   // CENTRAL / DOMESTIC RANGE — 6 free-standing piers, 12 bays, 2 storeys (Ch.4, Ch.8)
   // Core set back, then real pierced faces on the three walls we have evidence for.
-  box('peak', 9.5, 0.5, 44.4, 12.4, 17);
+  // No solid core: the range is built from its four wall faces, so every opening
+  // looks into the (dark) interior rather than onto a solid block behind.
+  box('peak', 32.6, 0.5, 2.4, 14.0, 17);          // east end wall, onto the vestibule
   // South wall: "large windows in some, perhaps all of the bays" between the
   // pilasters (Ch.8) — six bays on this side, plus the upper apartment storey.
   (function(){
@@ -1010,7 +1012,8 @@ function placeBuildings(){
   for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
 
   // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
-  box('peak', -25, -0.5, 23, 13.0, 32);
+  // built as faces, not a solid mass — see the central range above
+  box('peak', -13.9, -0.5, 2.2, 15.4, 32);        // east end wall, against chamber L
   /* The basement is "two huge parallel barrel vaults" (Ch.8) — chambers K and L,
      which the plan shows running ACROSS the castle, so their arched ends open on
      the north face. That pair of arches is the most recognisable thing about the
@@ -1053,20 +1056,11 @@ function placeBuildings(){
   cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
 
 
-  /* WESTERN END OF THE UPPER WARD — the sources are consistent that this
-     terminates in a round wall, not a rectangular block: Ch.4 refers to "the
-     round wall near the western gate tower", Ch.5 to "the semi-circular wall at
-     the western end of the upper ward" (Van de Velde drew it, with a window in
-     its top), Ch.8 describes "a curved wall on the west", and Rey drew it round
-     as early as 1871. Inside it sits the westernmost structure of the upper
-     castle, attached to the western side of chamber L, over a rectangular
-     barrel-vaulted cistern measuring 11 by 6 m (Ch.9). */
-  const westArc      = arcPoints(-39, 1, 11.0, Math.PI/2, 3*Math.PI/2, 44);
-  const westArcCoarse= arcPoints(-39, 1, 11.0, Math.PI/2, 3*Math.PI/2, 13);
-  wallRibbon('peak', westArc, 8.0, 2.8, false);
-  wallRibbon('ruin', westArc, 8.0, 2.8, true);
-  crenellatePolyline(westArcCoarse, (u,v)=>topYOf(u,v,8.0), {mD:1.7, mW:1.2, gap:1.1});
-  // the vaulted cistern structure it encloses, 11 m (N–S) by 6 m (E–W)
+  /* WESTERNMOST STRUCTURE OF THE UPPER WARD — attached to the western side of
+     chamber L, over a rectangular barrel-vaulted cistern measuring 11 by 6 m
+     (Ch.9). The "curved wall on the west" the sources mention belongs to the
+     defences BELOW the main buildings, together with the gate tower (Ch.8) —
+     it is not a ring around this block, and the photographs show none. */
   box('peak', -42.5, 1, 6, 11, 6.5);
   box('ruin', -42.5, 1, 6, 11, 2.6, 0.6);
 
@@ -1074,7 +1068,7 @@ function placeBuildings(){
   // carries the passage arch, an arrow embrasure on the middle floor directly
   // above it, and a machicolation on the floor above. Opening sizes scaled off
   // the measured south-face drawing, Plate 9.39.
-  box('peak', -46, -17, 7, 5.6, 17, 0, 0.12);
+  box('peak', -46, -15.9, 7, 3.4, 17, 0, 0.12);   // core set back behind the pierced face
   wallPanel('peak', -46, -19.9, 7, 1.9, 17, [
     { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
     { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
@@ -1082,7 +1076,7 @@ function placeBuildings(){
   ], 0.12);
   machicolation('peak', -46, -19.9, 5.4, topYOf(-46,-17,15.4), 0.12, -1);
   // the ruin keeps the tower nearly to full height — it is the best-preserved gate
-  box('ruin', -46, -17, 7, 5.6, 15.5, 0.35, 0.12);
+  box('ruin', -46, -15.9, 7, 3.4, 15.5, 0.35, 0.12);
   wallPanel('ruin', -46, -19.9, 7, 1.9, 15.0, [
     { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
     { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
@@ -1153,10 +1147,11 @@ function placeBuildings(){
   placeMill();
 
   // dark interiors, so every opening shows an unlit room rather than daylight
-  interiorShell('peak', 9.5, 0.5, 43.0, 11.4, 16.4, 0);      // central range
-  interiorShell('peak', -25, -0.5, 21.5, 11.6, 31.0, 0);     // western wing
-  interiorShell('peak', 40, 0, 13.4, 18.4, 23.0, 0);         // keep
-  interiorShell('peak', -46, -17, 5.6, 4.4, 16.4, 0.12);     // gate tower
+  // sized to sit just inside each wall's inner face, so an opening frames dark
+  // interior without the shell poking into the reveal
+  interiorShell('peak', 9.65, 0.6, 43.3, 10.4, 16.6, 0);     // central range
+  interiorShell('peak', -25.05, -0.2, 19.9, 11.8, 31.2, 0);  // western wing
+  interiorShell('peak', -46, -16.6, 5.4, 4.6, 16.4, 0.12);   // gate tower
   interiorShell('ruin', -25, 0.8, 21.5, 10.0, 6.8, 0);       // surviving vaults
 
   rebuildLabels();
