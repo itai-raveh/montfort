@@ -407,8 +407,16 @@ function wall(state, pts, h, thick, ruinPattern){
     const du=u2-u1, dv=v2-v1, len=Math.hypot(du,dv), ang=Math.atan2(dv,du);
     const cu=(u1+u2)/2, cv=(v1+v2)/2;
     let hh = h, jag = 0;
-    if (ruinPattern){ hh = (i%3===1) ? h : h*0.3; jag = 0.6; }  // some segments to full height (Ch.4 n.9), most collapsed
-    box(state, cu, cv, len+0.6, thick, hh, jag, -ang);
+    if (ruinPattern){
+      // gently varying survival rather than a hard tall/short alternation, so the
+      // wall keeps reading as one continuous curved ribbon (see Ch.4 n.9: some
+      // stretches still stand to their original full height)
+      const w = 0.5 + 0.5*Math.sin(i*0.9) * Math.cos(i*0.37);
+      hh = h * (0.34 + 0.66*w);
+      jag = 0.45;
+    }
+    // segments overlap generously so the joints between them disappear on a curve
+    box(state, cu, cv, len+thick*1.15, thick, hh, jag, -ang);
   }
 }
 // Chaikin corner-cutting: turns a hand-placed polyline into a smoothly curved one
@@ -425,6 +433,18 @@ function chaikin(pts, iterations){
     np.push(p[p.length-1]); p = np;
   }
   return p;
+}
+
+// Drop points that sit too close together, so heavy smoothing doesn't turn into
+// hundreds of near-zero-length wall segments.
+function resample(pts, minLen){
+  const out = [pts[0]];
+  for (let i=1;i<pts.length-1;i++){
+    const last = out[out.length-1];
+    if (Math.hypot(pts[i][0]-last[0], pts[i][1]-last[1]) >= minLen) out.push(pts[i]);
+  }
+  out.push(pts[pts.length-1]);
+  return out;
 }
 
 /* ---------- true open arches (real voids, not a texture trick) ----------
@@ -730,12 +750,25 @@ function placeBuildings(){
     wallPanel('peak', 9.5, 7.0, 46, 1.8, 17, win, 0);
   })();
   // North wall: a door near the west end leading out toward the gate tower (Plate 8.6),
-  // with an arrow embrasure above from the upper storey (Plate 8.11).
+  // with arrow embrasures from the upper storey above (Plate 8.11). The upper storey
+  // was domestic, so it carried real windows too — these are what read as large dark
+  // openings in the standing wall today.
   wallPanel('peak', 9.5, -6.0, 46, 2.4, 17, [
     { x:-18.0, y:0,    w:1.5, h:2.6, kind:'arch' },
-    { x:-18.0, y:10.8, w:0.45, h:2.2, kind:'slit' },
-    { x:-4.0,  y:10.8, w:0.45, h:2.2, kind:'slit' },
-    { x:10.0,  y:10.8, w:0.45, h:2.2, kind:'slit' }
+    { x:-18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x:-11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x:-3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x: 3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x: 11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x: 18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x:-7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 0,    y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x:-11.1, y:14.4, w:0.5, h:2.0, kind:'slit' },
+    { x: 3.7,  y:14.4, w:0.5, h:2.0, kind:'slit' },
+    { x: 18.5, y:14.4, w:0.5, h:2.0, kind:'slit' }
   ], 0);
   // West wall of the enclosure: two windows and a door (later blocked) with the
   // in-situ triangular bases of two arrow slits above them (Plates 8.4, 8.5).
@@ -752,10 +785,27 @@ function placeBuildings(){
   for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
 
   // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
-  box('peak', -25, -0.5, 23, 14.4, 32);
-  // South face: blank 11 m support wall below, then the Great Hall, then the
-  // Grand Master's / castellan's apartments — both storeys lit (Ch.8, Ch.20).
-  wallPanel('peak', -25, 7.2, 23, 1.6, 32, [
+  box('peak', -25, -0.5, 23, 13.0, 32);
+  /* The basement is "two huge parallel barrel vaults" (Ch.8) — chambers K and L,
+     which the plan shows running ACROSS the castle, so their arched ends open on
+     the north face. That pair of arches is the most recognisable thing about the
+     standing ruin. The south side is the opposite: a blank massive support wall
+     built against the rock, rising c. 11 m (Ch.8), so no openings low down there. */
+  const vaultArch = [
+    { x:-5.6, y:0, w:7.5, h:7.0, kind:'arch' },
+    { x: 5.6, y:0, w:7.5, h:7.0, kind:'arch' }
+  ];
+  // north face, peak: vault ends below, Great Hall windows, apartments above
+  wallPanel('peak', -25, -7.4, 23, 1.9, 32, vaultArch.concat([
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:0,    y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:6.5,  y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch' },
+    { x:0,    y:22.5, w:1.7, h:3.0, kind:'arch' },
+    { x:6.5,  y:22.5, w:1.7, h:3.0, kind:'arch' }
+  ]), 0);
+  // south face, peak: blank support wall below, hall and apartments lit above
+  wallPanel('peak', -25, 6.9, 23, 1.6, 32, [
     { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch' },
     { x:0,    y:12.5, w:2.2, h:4.2, kind:'arch' },
     { x:6.5,  y:12.5, w:2.2, h:4.2, kind:'arch' },
@@ -763,11 +813,20 @@ function placeBuildings(){
     { x:0,    y:22.5, w:1.7, h:3.0, kind:'arch' },
     { x:6.5,  y:22.5, w:1.7, h:3.0, kind:'arch' }
   ], 0);
-  // ruin: the undercroft is the one part of the west range where vaulting survives
-  // intact (Ch.4) — modelled as a real open arcade, not a solid block.
-  box('ruin', -25, -1.6, 23, 12.8, 7.0, 0.35);          // undercroft body, set back from the face
-  archArcade('ruin', -25, 7.5, 23, 1.7, 7.5, 3, 4.6, 5.6, 0, 0);   // the arcade face itself
-  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);             // octagonal pier in situ (Ch.9, Ch.20)
+  // west end wall, peak — the wing's gable end also had to be lit
+  wallPanel('peak', -36.2, -0.5, 14.0, 1.6, 32, [
+    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
+    { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
+    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
+    { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
+    { x: 0,   y:5.0,  w:0.45, h:2.0, kind:'slit' }
+  ], Math.PI/2);
+  // ruin: the two vaults are the one part of the west range still standing (Ch.4)
+  box('ruin', -25, 0.8, 23, 11.0, 7.2, 0.35);                    // vault body, set back
+  wallPanel('ruin', -25, -7.4, 23, 1.9, 8.6, vaultArch, 0);      // the surviving arch pair
+  box('ruin', -25, 6.9, 23, 2.0, 10.5, 0.45);                    // south support wall stub
+  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
+
 
   // small vault / cistern structure further west
   box('peak', -42, 1, 11, 10, 8);
@@ -792,14 +851,16 @@ function placeBuildings(){
     { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
   ], 0.12);
 
-  // ROUND TOWER on the southern outer enceinte — flared talus base, straight shaft
-  roundTower('peak', -20, 20, 4.2, 6.0, 4.5, 6.5);
-  roundTower('ruin', -20, 20, 4.2, 6.0, 4.0, 1.2);
+  // ROUND TOWER on the southern outer enceinte — a broad drum with a strongly
+  // flared talus, built of very large rough blocks; it reads far wider than tall
+  // in the standing remains.
+  roundTower('peak', -20, 20, 5.2, 7.6, 5.0, 6.0);
+  roundTower('ruin', -20, 20, 5.2, 7.6, 4.4, 1.4);
 
   // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
-  // Chaikin-smoothed so it follows the spur's natural curve rather than sharp facets
+  // subdivided until it reads as a true curve following the spur, not a faceted line
   const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
-  const outer = chaikin(outerRaw, 2);
+  const outer = resample(chaikin(outerRaw, 4), 1.6);
   wall('peak', outer, 5.5, 1.5, false);
   wall('ruin', outer, 5.5, 1.5, true);
 
