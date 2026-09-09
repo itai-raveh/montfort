@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Montfort · Qal'at Qurein — reconstruction</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/128/three.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#141a1f;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#eee6d6}
+  #view{position:fixed;inset:0;cursor:grab}
+  #view.drag{cursor:grabbing}
+  canvas{display:block}
+
+  /* title */
+  #title{position:fixed;top:20px;left:24px;z-index:6;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.55)}
+  #title h1{font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;font-weight:500;font-size:25px;letter-spacing:.01em}
+  #title p{font-size:12px;color:#cfc5ad;max-width:360px;line-height:1.45;margin-top:3px}
+
+  /* compass */
+  #compass{position:fixed;top:22px;right:22px;z-index:6;width:54px;height:54px;border-radius:50%;
+    border:1px solid rgba(238,230,214,.35);background:rgba(20,17,13,.35);pointer-events:none}
+  #compass svg{width:100%;height:100%}
+
+  /* labels */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .tag{position:absolute;transform:translate(-50%,-100%);font-size:11.5px;color:#f2ead9;
+    background:rgba(20,17,13,.6);padding:3px 8px;border-radius:3px;white-space:nowrap;
+    border:1px solid rgba(238,230,214,.18)}
+  .tag::after{content:'';position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);width:1px;height:6px;background:rgba(238,230,214,.45)}
+
+  /* bottom hud */
+  #hud{position:fixed;left:0;right:0;bottom:22px;z-index:6;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+  #era{font-size:13px;letter-spacing:.02em;text-shadow:0 2px 8px rgba(0,0,0,.6);min-height:18px;text-align:center;padding:0 16px}
+  #era b{color:#e9c66f;font-weight:600}
+  #timeline{pointer-events:auto;width:min(560px,86vw);background:rgba(20,17,13,.66);border:1px solid rgba(238,230,214,.16);
+    border-radius:10px;padding:14px 22px 12px;backdrop-filter:blur(6px)}
+  #track{position:relative;height:4px;border-radius:2px;background:rgba(238,230,214,.22);margin:10px 4px 8px}
+  #fill{position:absolute;left:0;top:0;height:100%;border-radius:2px;background:linear-gradient(90deg,#8a6a2f,#e9c66f);transition:width .35s ease}
+  .stop{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;
+    background:#1c1712;border:2px solid rgba(238,230,214,.4);transition:transform .2s,background .25s,border-color .25s}
+  .stop:hover{transform:translate(-50%,-50%) scale(1.15)}
+  .stop.on{background:#e9c66f;border-color:#e9c66f}
+  #tl-labels{display:flex;justify-content:space-between}
+  #tl-labels span{font-size:11px;color:#cfc5ad;cursor:pointer;user-select:none}
+  #tl-labels span.on{color:#f2ead9;font-weight:600}
+
+  /* layer buttons */
+  #layers{position:fixed;right:22px;bottom:22px;z-index:7;display:flex;flex-direction:column;gap:6px}
+  .btn{font-size:11.5px;color:#eee6d6;background:rgba(20,17,13,.66);border:1px solid rgba(238,230,214,.2);
+    border-radius:6px;padding:7px 11px;cursor:pointer;backdrop-filter:blur(6px);text-align:left;min-width:120px}
+  .btn.on{border-color:#e9c66f;color:#f6e7bd}
+  .btn:focus-visible{outline:2px solid #e9c66f;outline-offset:2px}
+
+  /* calibration */
+  #calib{position:fixed;left:22px;bottom:22px;z-index:7;width:250px;display:none;background:rgba(20,17,13,.78);
+    border:1px solid rgba(238,230,214,.2);border-radius:8px;padding:12px 14px;backdrop-filter:blur(6px);font-size:11.5px}
+  #calib.show{display:block}
+  #calib h2{font-size:12px;font-weight:600;margin-bottom:8px;color:#f2ead9}
+  #calib label{display:flex;justify-content:space-between;align-items:center;margin:5px 0 2px;color:#cfc5ad}
+  #calib label output{color:#f2ead9;font-variant-numeric:tabular-nums}
+  #calib input[type=range]{width:100%;accent-color:#e9c66f}
+  #calib textarea{width:100%;height:56px;margin-top:8px;font:10.5px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    background:rgba(0,0,0,.35);color:#eee6d6;border:1px solid rgba(238,230,214,.2);border-radius:4px;padding:5px;resize:none}
+  #calib p{color:#b9af98;margin-top:6px;line-height:1.4}
+
+  /* attribution + status */
+  #attrib{position:fixed;left:22px;bottom:22px;z-index:6;font-size:10.5px;color:rgba(238,230,214,.6);pointer-events:none;max-width:52vw}
+  #attrib.hide{display:none}
+  #status{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;text-align:center;
+    background:rgba(20,17,13,.8);border:1px solid rgba(238,230,214,.2);border-radius:10px;padding:18px 26px;
+    font-size:13px;color:#eee6d6;max-width:420px;line-height:1.5;transition:opacity .5s}
+  #status small{display:block;color:#cfc5ad;font-size:11.5px;margin-top:6px}
+  #hint{position:fixed;bottom:146px;left:50%;transform:translateX(-50%);color:rgba(238,230,214,.6);font-size:11px;z-index:6;pointer-events:none;transition:opacity .6s;opacity:0}
+  @media (max-width:700px){
+    #title p{display:none} #layers{bottom:150px} #attrib{display:none} #calib{width:220px;bottom:150px}
+  }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="labels"></div>
+
+<div id="title">
+  <h1>Montfort · Qal'at Qurein</h1>
+  <p>Massing reconstruction on real terrain. Dimensions from the published surveys and excavations (Rey 1871 to Boas &amp; Khamisy 2016). Undocumented parts simplified.</p>
+</div>
+
+<div id="compass"><svg viewBox="0 0 54 54"><g id="needle"><polygon points="27,8 31,27 27,25 23,27" fill="#e9c66f"/><polygon points="27,46 31,27 27,29 23,27" fill="rgba(238,230,214,.35)"/></g><text x="27" y="15" text-anchor="middle" font-size="9" fill="#f2ead9" font-family="Georgia,serif">N</text></svg></div>
+
+<div id="status">Loading terrain and imagery…<small id="progress"></small></div>
+<div id="hint">drag to orbit · scroll or pinch to zoom</div>
+
+<div id="hud">
+  <div id="era"></div>
+  <div id="timeline">
+    <div id="track">
+      <div id="fill"></div>
+      <div class="stop" data-i="0" style="left:0%"></div>
+      <div class="stop" data-i="1" style="left:100%"></div>
+    </div>
+    <div id="tl-labels"><span data-i="0">c. 1240 — height of the Order</span><span data-i="1">today — the ruin</span></div>
+  </div>
+</div>
+
+<div id="layers">
+  <button class="btn on" id="b-img">Satellite imagery</button>
+  <button class="btn on" id="b-lab">Labels</button>
+  <button class="btn" id="b-cal">Calibrate position</button>
+</div>
+
+<div id="calib">
+  <h2>Align the massing to the ruin</h2>
+  <label>Axis bearing (°) <output id="o-rot"></output></label>
+  <input type="range" id="c-rot" min="0" max="360" step="0.5">
+  <label>Shift east (m) <output id="o-e"></output></label>
+  <input type="range" id="c-e" min="-150" max="150" step="1">
+  <label>Shift north (m) <output id="o-n"></output></label>
+  <input type="range" id="c-n" min="-150" max="150" step="1">
+  <label>Raise / lower (m) <output id="o-up"></output></label>
+  <input type="range" id="c-up" min="-15" max="15" step="0.5">
+  <label>Mill east (m) <output id="o-me"></output></label>
+  <input type="range" id="c-me" min="-250" max="250" step="1">
+  <label>Mill north (m) <output id="o-mn"></output></label>
+  <input type="range" id="c-mn" min="-50" max="300" step="1">
+  <textarea id="c-out" readonly></textarea>
+  <p>Match the keep and the long range to the wall lines visible in the imagery, then paste these values into CFG at the top of the script.</p>
+</div>
+
+<div id="attrib">Imagery © Esri, Maxar, Earthstar Geographics and the GIS user community · Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL)</div>
+
+<script>
+/* ============================================================
+   MONTFORT CASTLE — georeferenced massing reconstruction
+   Real terrain + satellite drape fetched at load time.
+   Castle dimensions: Boas & Khamisy (eds.), Montfort (Brill 2016)
+   chs. 4, 8, 9, 10, 13, 20; plan orientation from the frontispiece
+   north arrow (keep toward ENE, western wing toward WSW).
+   ============================================================ */
+
+const CFG = {
+  lat0: 33.04472, lon0: 35.22611,   // reference point (castle centre, Wikipedia figure)
+  half: 620,                        // half-size of the modelled area, metres
+  spacing: 3,                       // terrain grid spacing, metres
+  terrainZoom: 15,                  // max zoom for Terrain Tiles
+  imageryZoom: 18,                  // Esri World Imagery zoom
+  axisBearing: 67,                  // degrees, from castle centre toward the keep
+  offsetE: 0, offsetN: 0, offsetUp: 0,
+  millE: -40, millN: 175,           // mill / guesthouse, local metres from reference
+  carveMoats: true
+};
+
+const TERRAIN_URL = (z,x,y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+const IMAGERY_URL = (z,x,y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+
+/* ---------- geodesy helpers ---------- */
+const DEG = Math.PI/180;
+const M_LAT = 110574;
+const M_LON = 111320 * Math.cos(CFG.lat0*DEG);
+const lonToX = (lon,z) => (lon+180)/360 * Math.pow(2,z);
+const latToY = (lat,z) => { const r=lat*DEG; return (1 - Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2 * Math.pow(2,z); };
+const toLatLon = (e,n) => ({ lat: CFG.lat0 + n/M_LAT, lon: CFG.lon0 + e/M_LON });
+
+// castle frame: u along the axis toward the keep, v perpendicular toward the SSE (south side)
+function toFrame(e,n){
+  const b = CFG.axisBearing*DEG, de = e-CFG.offsetE, dn = n-CFG.offsetN;
+  return { u: de*Math.sin(b)+dn*Math.cos(b), v: de*Math.cos(b)-dn*Math.sin(b) };
+}
+function fromFrame(u,v){
+  const b = CFG.axisBearing*DEG;
+  return { e: CFG.offsetE + u*Math.sin(b) + v*Math.cos(b), n: CFG.offsetN + u*Math.cos(b) - v*Math.sin(b) };
+}
+
+/* ---------- scene ---------- */
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+const skyTop = new THREE.Color(0x5f8fb0), skyHor = new THREE.Color(0xeadcc2);
+scene.background = skyTop;
+scene.fog = new THREE.Fog(0xd9cbb0, 700, 1900);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 1, 6000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.appendChild(renderer.domElement);
+
+(function sky(){
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ top:{value:skyTop}, bottom:{value:skyHor} },
+    vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`varying vec3 vP; uniform vec3 top,bottom; void main(){ float t=smoothstep(-0.04,0.5,normalize(vP).y); gl_FragColor=vec4(mix(bottom,top,t),1.0); }`,
+    side:THREE.BackSide, depthWrite:false, fog:false });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(2800,24,16), mat));
+})();
+
+const sun = new THREE.DirectionalLight(0xfff1d6, 0.7);
+sun.position.set(-500, 700, 450);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:1800 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe0ef, 0x6e6250, 0.6));
+
+/* ---------- state ---------- */
+let elevRaster = null;   // {data, w, h, x0, y0, z}
+let imgRaster = null;    // {canvas, x0, y0, w, h, z}
+let elev0 = 0;
+let terrainMesh = null, terrainMatImg = null, terrainMatFlat = null;
+let liveTerrain = false, liveImagery = false;
+const castle = new THREE.Group(); scene.add(castle);
+const groups = { peak: new THREE.Group(), ruin: new THREE.Group() };
+scene.add(groups.peak, groups.ruin);
+let labelDefs = [], labelEls = [];
+
+/* ---------- tile loading ---------- */
+const progressEl = document.getElementById('progress');
+function loadImage(url, ms){
+  return new Promise((res,rej)=>{
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    const t = setTimeout(()=>rej(new Error('timeout')), ms||25000);
+    img.onload = ()=>{ clearTimeout(t); res(img); };
+    img.onerror = ()=>{ clearTimeout(t); rej(new Error('load failed')); };
+    img.src = url;
+  });
+}
+async function loadRaster(urlFn, z, label){
+  const d = CFG.half;
+  const lonMin = CFG.lon0 - d/M_LON, lonMax = CFG.lon0 + d/M_LON;
+  const latMin = CFG.lat0 - d/M_LAT, latMax = CFG.lat0 + d/M_LAT;
+  const x0 = Math.floor(lonToX(lonMin,z)), x1 = Math.floor(lonToX(lonMax,z));
+  const y0 = Math.floor(latToY(latMax,z)), y1 = Math.floor(latToY(latMin,z));
+  const w = (x1-x0+1)*256, h = (y1-y0+1)*256;
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const total = (x1-x0+1)*(y1-y0+1); let done = 0;
+  const jobs = [];
+  for (let x=x0; x<=x1; x++) for (let y=y0; y<=y1; y++){
+    jobs.push(loadImage(urlFn(z,x,y)).then(img=>{
+      ctx.drawImage(img, (x-x0)*256, (y-y0)*256); done++;
+      progressEl.textContent = `${label}: ${done} / ${total} tiles`;
+    }));
+  }
+  await Promise.all(jobs);
+  return { canvas, ctx, x0, y0, w, h, z };
+}
+
+async function loadTerrain(){
+  const r = await loadRaster(TERRAIN_URL, CFG.terrainZoom, 'terrain');
+  const px = r.ctx.getImageData(0,0,r.w,r.h).data;
+  const data = new Float32Array(r.w*r.h);
+  for (let i=0, j=0; i<data.length; i++, j+=4) data[i] = (px[j]*256 + px[j+1] + px[j+2]/256) - 32768;
+  elevRaster = { data, w:r.w, h:r.h, x0:r.x0, y0:r.y0, z:r.z };
+  liveTerrain = true;
+}
+async function loadImagery(){
+  const r = await loadRaster(IMAGERY_URL, CFG.imageryZoom, 'imagery');
+  r.ctx.getImageData(0,0,1,1);           // throws if the canvas is tainted (no CORS) — then no drape
+  imgRaster = r; liveImagery = true;
+}
+
+/* ---------- elevation sampling ---------- */
+function elevAtLatLon(lat, lon){
+  const R = elevRaster;
+  const px = (lonToX(lon,R.z)-R.x0)*256 - 0.5, py = (latToY(lat,R.z)-R.y0)*256 - 0.5;
+  const x = Math.max(0, Math.min(R.w-2, Math.floor(px))), y = Math.max(0, Math.min(R.h-2, Math.floor(py)));
+  const fx = Math.max(0, Math.min(1, px-x)), fy = Math.max(0, Math.min(1, py-y));
+  const d = R.data, i = y*R.w + x;
+  const a = d[i], b = d[i+1], c = d[i+R.w], e = d[i+R.w+1];
+  return (a*(1-fx)+b*fx)*(1-fy) + (c*(1-fx)+e*fx)*fy;
+}
+
+// plan-derived fallback (frame coords): ridge platform, cliffs to the gorge, hillside beyond the moats
+function noise(x,z,s){ let v=0,a=1,f=1,t=0; for(let o=0;o<4;o++){ v+=a*Math.sin(x*.05*f+s)*Math.cos(z*.06*f+s*1.3); t+=a; a*=.5; f*=2.1; } return v/t; }
+function fallbackHeight(e,n){
+  const {u,v} = toFrame(e,n);
+  let spine;
+  if (u > 95) spine = 8 + (u-95)*0.6;                 // hill to the east
+  else if (u > 58) spine = 6 - Math.max(0,58-u)*0.0;  // berm + moat zone (moats carved separately)
+  else spine = 6 - Math.max(0, (58-u))*0.11 - Math.max(0, -u-45)*0.9;  // platform sloping west, cliff beyond
+  const half = 11, av = Math.abs(v);
+  let h = av <= half ? spine - (av/half)*(av/half)*1.2
+                     : spine - (1-Math.exp(-(av-half)/18))*70 - (av-half)*0.06;
+  if (v < -60) h = Math.min(h, -60 + noise(e,n,9));    // gorge floor to the north
+  return h + noise(e,n,4.2)*1.8;
+}
+
+// rock-cut moats (Ch.9): inner 20 m wide / 11 m deep in front of the keep, outer 10 m wide / 13 m deep
+function moatCut(e,n){
+  if (!CFG.carveMoats) return 0;
+  const {u,v} = toFrame(e,n);
+  if (Math.abs(v) > 16) return 0;
+  const edge = Math.max(0, 1 - Math.max(0, Math.abs(v)-11)/5); // soften at the flanks
+  let cut = 0;
+  const trench = (uMin,uMax,depth) => { if (u>uMin && u<uMax){ const t=(u-uMin)/(uMax-uMin); return depth*Math.sin(t*Math.PI)**0.6; } return 0; };
+  cut = Math.max(trench(58,78,11), trench(85,95,13));
+  return -cut*edge;
+}
+
+function groundAt(e,n){
+  if (liveTerrain){ const p = toLatLon(e,n); return elevAtLatLon(p.lat, p.lon) - elev0 + moatCut(e,n); }
+  return fallbackHeight(e,n) + moatCut(e,n);
+}
+
+/* ---------- terrain mesh ---------- */
+function buildTerrain(){
+  if (terrainMesh){ scene.remove(terrainMesh); terrainMesh.geometry.dispose(); }
+  const N = Math.round(2*CFG.half/CFG.spacing)+1;
+  const pos = new Float32Array(N*N*3), uv = new Float32Array(N*N*2), col = new Float32Array(N*N*3);
+  const idx = [];
+  const cRock = new THREE.Color(0x8b7b62), cGrass = new THREE.Color(0x6f8250), cDry = new THREE.Color(0x9b9a62), cMaquis = new THREE.Color(0x4d6a3e);
+  for (let j=0;j<N;j++) for (let i=0;i<N;i++){
+    const e = -CFG.half + i*CFG.spacing, n = CFG.half - j*CFG.spacing;
+    const y = groundAt(e,n);
+    const k = j*N+i;
+    pos[k*3]=e; pos[k*3+1]=y; pos[k*3+2]=-n;
+    if (imgRaster){
+      const p = toLatLon(e,n);
+      uv[k*2]   = (lonToX(p.lon,imgRaster.z)-imgRaster.x0)*256/imgRaster.w;
+      uv[k*2+1] = 1 - (latToY(p.lat,imgRaster.z)-imgRaster.y0)*256/imgRaster.h;
+    } else { uv[k*2]=i/(N-1); uv[k*2+1]=1-j/(N-1); }
+    // flat colouring for the no-imagery case: maquis on the slopes, dry grass on the ridge
+    const s = Math.abs(groundAt(e+CFG.spacing,n)-groundAt(e-CFG.spacing,n)) + Math.abs(groundAt(e,n+CFG.spacing)-groundAt(e,n-CFG.spacing));
+    const slope = Math.min(1, s/(4*CFG.spacing)*1.4);
+    const c = cDry.clone().lerp(cGrass, 0.5+0.3*noise(e,n,2)).lerp(cMaquis, Math.min(0.7, slope*0.9+0.2*noise(e,n,7))).lerp(cRock, Math.max(0, slope-0.55)*1.3);
+    col[k*3]=c.r; col[k*3+1]=c.g; col[k*3+2]=c.b;
+  }
+  for (let j=0;j<N-1;j++) for (let i=0;i<N-1;i++){ const a=j*N+i, b=a+1, c=a+N, d=c+1; idx.push(a,c,b, b,c,d); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  g.setIndex(idx); g.computeVertexNormals();
+
+  if (!terrainMatFlat) terrainMatFlat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0 });
+  if (imgRaster && !terrainMatImg){
+    try {
+      const tex = new THREE.CanvasTexture(imgRaster.canvas);
+      tex.encoding = THREE.sRGBEncoding; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      terrainMatImg = new THREE.MeshStandardMaterial({ map:tex, roughness:0.95, metalness:0 });
+    } catch(err){ console.warn('Imagery texture unavailable:', err); terrainMatImg = null; liveImagery = false; }
+  }
+  terrainMesh = new THREE.Mesh(g, (showImagery && terrainMatImg) ? terrainMatImg : terrainMatFlat);
+  terrainMesh.receiveShadow = true;
+  scene.add(terrainMesh);
+}
+
+/* ---------- buildings ---------- */
+const matPeak = new THREE.MeshStandardMaterial({ color:0xeadfc5, roughness:0.85, metalness:0.02 });
+const matRuin = new THREE.MeshStandardMaterial({ color:0xbcb08f, roughness:0.95, metalness:0.02 });
+const edgePeak = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.55 });
+const edgeRuin = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.4 });
+const FOUND = 10; // metres of "foundation" buried into the slope so nothing floats
+
+function jagTop(geo, amount, seed){
+  const p = geo.attributes.position; const box = new THREE.Box3().setFromBufferAttribute(p);
+  for (let i=0;i<p.count;i++){ if (p.getY(i) > box.max.y-0.01){ const n = noise(p.getX(i)*3+seed, p.getZ(i)*3+seed*2, seed); p.setY(i, p.getY(i) + n*amount); } }
+  geo.computeVertexNormals();
+}
+function addToGroup(group, geo, mat, edgeMat, x, y, z, rotY){
+  const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true;
+  m.position.set(x,y,z); m.rotation.y = rotY||0; group.add(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgeMat);
+  e.position.copy(m.position); e.rotation.y = rotY||0; group.add(e);
+  return m;
+}
+// frame-coordinate box: centre (u,v), size along u (su) and v (sv), height h above ground, optional jag
+function box(state, u, v, su, sv, h, jag, rot){
+  const {e,n} = fromFrame(u,v);
+  const base = groundAt(e,n) + CFG.offsetUp;
+  const geo = new THREE.BoxGeometry(su, h+FOUND, sv, 1, 1, 1);
+  if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u+v); geo.translate(0,-(h+FOUND)/2,0); }
+  const g = groups[state];
+  addToGroup(g, geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, u, base + (h-FOUND)/2, v, rot||0);
+}
+function cylinder(state, u, v, r, h, segs, jag){
+  const {e,n} = fromFrame(u,v);
+  const base = groundAt(e,n) + CFG.offsetUp;
+  const geo = new THREE.CylinderGeometry(r, r*1.03, h+FOUND, segs||16, 1, false);
+  if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u*2+v); geo.translate(0,-(h+FOUND)/2,0); }
+  addToGroup(groups[state], geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v);
+}
+function wall(state, pts, h, thick, ruinPattern){
+  for (let i=0;i<pts.length-1;i++){
+    const [u1,v1]=pts[i], [u2,v2]=pts[i+1];
+    const du=u2-u1, dv=v2-v1, len=Math.hypot(du,dv), ang=Math.atan2(dv,du);
+    const cu=(u1+u2)/2, cv=(v1+v2)/2;
+    let hh = h, jag = 0;
+    if (ruinPattern){ hh = (i%3===1) ? h : h*0.3; jag = 0.6; }  // some segments to full height (Ch.4 n.9), most collapsed
+    box(state, cu, cv, len+0.6, thick, hh, jag, -ang);
+  }
+}
+
+function placeBuildings(){
+  ['peak','ruin'].forEach(k=>{ const g=groups[k]; while(g.children.length) g.remove(g.children[0]); });
+  const b = (90-CFG.axisBearing)*DEG;
+  [groups.peak, groups.ruin].forEach(g=>{ g.position.set(CFG.offsetE, 0, -CFG.offsetN); g.rotation.y = b; });
+
+  /* Frame layout (metres along the axis; keep at +u, western wing at -u):
+     keep 32.5..57.5 (25 x 20 m; Ch.9), inner moat 58..78, berm, outer moat 85..95,
+     central range -13.5..32.5 (46 x 14 m; two rows of six groin vaults),
+     western wing -36.5..-13.5 (23 x 16 m; >30 m tall; Ch.20),
+     small western vault -47.5..-36.5. Outer enceinte lower on both flanks. */
+
+  // KEEP — rectangle + apsidal (D-shaped) east end
+  box('peak', 40, 0, 15, 20, 24);
+  cylinder('peak', 47.5, 0, 10, 24, 20);
+  // ruin: "above the cistern only two fragments of the inner faces are standing" (Ch.4)
+  box('ruin', 40, 0, 15, 20, 2.2, 0.9);
+  cylinder('ruin', 47.5, 0, 10, 2.2, 20, 0.9);
+  box('ruin', 35.5, -3.5, 1.4, 6, 7.5, 0.5);
+  box('ruin', 39, 5.5, 5, 1.4, 6, 0.5);
+
+  // CENTRAL / DOMESTIC RANGE — 6 free-standing piers, 12 bays, 2 storeys (Ch.4, Ch.8)
+  box('peak', 9.5, 0.5, 46, 14, 17);
+  box('ruin', 9.5, -5.7, 46, 2.4, 2.6, 0.7);     // north wall, "hardly surviving above bedrock" in places
+  box('ruin', 9.5, 6.3, 46, 2.0, 4.0, 0.7);      // south wall
+  box('ruin', -13, 0.5, 2.0, 12, 3.5, 0.6);      // west dividing wall W(A)2
+  for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
+
+  // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
+  box('peak', -25, -0.5, 23, 16, 32);
+  box('ruin', -25, -0.5, 23, 16, 7.0, 0.6);      // undercroft survives (Ch.4)
+  box('ruin', -25, 6.8, 23, 2.2, 10.5, 0.4);     // south wall "to about a third of its height" (Ch.4)
+  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);      // octagonal pier in situ (Ch.9, Ch.20)
+
+  // small vault / cistern structure further west
+  box('peak', -42, 1, 11, 10, 8);
+  box('ruin', -42, 1, 11, 10, 2.4, 0.7);
+
+  // WESTERN GATE TOWER — three storeys, 17 m, well preserved (Ch.9)
+  box('peak', -46, -17, 7, 7, 17, 0, 0.12);
+  box('ruin', -46, -17, 7, 7, 15.5, 0.35, 0.12);
+
+  // semi-circular tower on the southern outer enceinte
+  cylinder('peak', -20, 20, 4.2, 10, 14);
+  cylinder('ruin', -20, 20, 4.2, 3.5, 14, 0.6);
+
+  // OUTER ENCEINTE — down the north flank, round the west end, back along the south
+  const outer = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
+  wall('peak', outer, 5.5, 1.5, false);
+  wall('ruin', outer, 5.5, 1.5, true);
+
+  // labels (world anchors)
+  labelDefs = [
+    ['Keep', 45, 0, 26], ['Central range', 9.5, 0.5, 19], ['Western wing · Great Hall', -25, -0.5, 34],
+    ['Gate tower', -46, -17, 19], ['Outer wall', -50, 8, 8], ['Rock-cut moats', 78, 0, 6]
+  ].map(([t,u,v,dy])=>{ const {e,n}=fromFrame(u,v); return { text:t, pos:new THREE.Vector3(e, groundAt(e,n)+CFG.offsetUp+dy, -n) }; });
+
+  // MILL & GUESTHOUSE — Nahal Kziv valley (Pringle & Leach 1986; Ch.10)
+  placeMill();
+  rebuildLabels();
+  setEra(currentEra);
+}
+
+const millGroups = { peak:new THREE.Group(), ruin:new THREE.Group() };
+scene.add(millGroups.peak, millGroups.ruin);
+function placeMill(){
+  ['peak','ruin'].forEach(k=>{ const g=millGroups[k]; while(g.children.length) g.remove(g.children[0]); g.position.set(CFG.millE,0,-CFG.millN); g.rotation.y = (90-70)*DEG; });
+  const base = groundAt(CFG.millE, CFG.millN) + CFG.offsetUp;
+  const mk = (state, x, z, sx, sz, h, jag) => {
+    const geo = new THREE.BoxGeometry(sx, h+FOUND, sz);
+    if (jag){ geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, x+z); geo.translate(0,-(h+FOUND)/2,0); }
+    addToGroup(millGroups[state], geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, x, base+(h-FOUND)/2, z);
+  };
+  mk('peak', 0, 0, 20, 9, 9);          // two-storey mill + hall
+  mk('peak', -13, -0.5, 7, 7, 13);     // west appendage, originally three storeys
+  mk('ruin', 0, 0, 20, 9, 4.5, 0.5);   // ground-floor vault intact
+  mk('ruin', 7, 0, 5, 9, 8.5, 0.4);    // one bay of the upper hall still standing
+  mk('ruin', -13, -0.5, 7, 7, 2.5, 0.6); // tower collapsed 1940-42
+  labelDefs.push({ text:'Mill & guesthouse', pos:new THREE.Vector3(CFG.millE, base+11, -CFG.millN) });
+}
+
+/* ---------- labels ---------- */
+const labelLayer = document.getElementById('labels');
+function rebuildLabels(){
+  labelLayer.innerHTML = ''; labelEls = labelDefs.map(d=>{ const el=document.createElement('div'); el.className='tag'; el.textContent=d.text; labelLayer.appendChild(el); return {el, pos:d.pos}; });
+}
+function updateLabels(){
+  const w=innerWidth, h=innerHeight;
+  labelEls.forEach(l=>{
+    if (!showLabels){ l.el.style.display='none'; return; }
+    const v = l.pos.clone().project(camera);
+    const behind = v.z > 1;
+    const dist = camera.position.distanceTo(l.pos);
+    l.el.style.display = (behind || dist > 1100) ? 'none' : 'block';
+    l.el.style.left = ((v.x*0.5+0.5)*w)+'px'; l.el.style.top = ((-v.y*0.5+0.5)*h)+'px';
+  });
+}
+
+/* ---------- camera: orbit + zoom ---------- */
+const target = new THREE.Vector3(0, 8, 0);
+let radius = 330, theta = 2.35, phi = 1.02;
+const R_MIN = 60, R_MAX = 1500, PHI_MIN = 0.3, PHI_MAX = 1.5;
+function updateCamera(){
+  camera.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+  const needle = document.getElementById('needle');
+  if (needle) needle.setAttribute('transform', `rotate(${theta*180/Math.PI} 27 27)`);
+}
+let dragging=false, lx=0, ly=0, pinch=null;
+view.addEventListener('pointerdown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; view.classList.add('drag'); hint.style.opacity='0'; });
+addEventListener('pointerup', ()=>{ dragging=false; view.classList.remove('drag'); });
+addEventListener('pointermove', e=>{ if(!dragging) return; theta -= (e.clientX-lx)*0.0055; phi = Math.min(PHI_MAX, Math.max(PHI_MIN, phi-(e.clientY-ly)*0.0045)); lx=e.clientX; ly=e.clientY; updateCamera(); });
+view.addEventListener('wheel', e=>{ e.preventDefault(); radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+e.deltaY*0.0012))); updateCamera(); }, {passive:false});
+view.addEventListener('touchmove', e=>{ if(e.touches.length===2){ const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); if(pinch!==null){ radius=Math.min(R_MAX,Math.max(R_MIN,radius*(1+(pinch-d)*0.004))); updateCamera(); } pinch=d; } }, {passive:true});
+view.addEventListener('touchend', ()=>{ pinch=null; });
+addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+/* ---------- timeline ---------- */
+const eras = [
+  'Circa <b>1240</b> — the castle complete, principal fortress of the Teutonic Order in the Latin East.',
+  '<b>Today</b> — dismantled by Baybars\' army over twelve days in July 1271; largely undisturbed since.'
+];
+let currentEra = 0;
+function setEra(i){
+  currentEra = i;
+  groups.peak.visible = millGroups.peak.visible = (i===0);
+  groups.ruin.visible = millGroups.ruin.visible = (i===1);
+  document.getElementById('era').innerHTML = eras[i];
+  document.getElementById('fill').style.width = i===0 ? '0%' : '100%';
+  document.querySelectorAll('.stop').forEach(s=>s.classList.toggle('on', +s.dataset.i===i));
+  document.querySelectorAll('#tl-labels span').forEach(s=>s.classList.toggle('on', +s.dataset.i===i));
+}
+document.querySelectorAll('.stop, #tl-labels span').forEach(el=>el.addEventListener('click', ()=>setEra(+el.dataset.i)));
+
+/* ---------- layers + calibration ---------- */
+let showImagery = true, showLabels = true;
+const bImg = document.getElementById('b-img'), bLab = document.getElementById('b-lab'), bCal = document.getElementById('b-cal');
+bImg.addEventListener('click', ()=>{ showImagery=!showImagery; bImg.classList.toggle('on', showImagery); if(terrainMesh) terrainMesh.material = (showImagery && terrainMatImg) ? terrainMatImg : terrainMatFlat; });
+bLab.addEventListener('click', ()=>{ showLabels=!showLabels; bLab.classList.toggle('on', showLabels); });
+bCal.addEventListener('click', ()=>{ const c=document.getElementById('calib'); const on=!c.classList.contains('show'); c.classList.toggle('show', on); bCal.classList.toggle('on', on); document.getElementById('attrib').classList.toggle('hide', on); });
+
+const sliders = [['c-rot','o-rot','axisBearing'],['c-e','o-e','offsetE'],['c-n','o-n','offsetN'],['c-up','o-up','offsetUp'],['c-me','o-me','millE'],['c-mn','o-mn','millN']];
+let rebuildTimer = null;
+sliders.forEach(([id,out,key])=>{
+  const el=document.getElementById(id), o=document.getElementById(out);
+  el.value = CFG[key]; o.value = CFG[key];
+  el.addEventListener('input', ()=>{ CFG[key] = +el.value; o.value = el.value; writeCalib(); clearTimeout(rebuildTimer); rebuildTimer = setTimeout(()=>{ if (key==='axisBearing'||key==='offsetE'||key==='offsetN') buildTerrain(); placeBuildings(); }, 80); });
+});
+function writeCalib(){ document.getElementById('c-out').value = `axisBearing: ${CFG.axisBearing}, offsetE: ${CFG.offsetE}, offsetN: ${CFG.offsetN}, offsetUp: ${CFG.offsetUp},\nmillE: ${CFG.millE}, millN: ${CFG.millN}`; }
+writeCalib();
+
+/* ---------- boot ---------- */
+const statusEl = document.getElementById('status'), hint = document.getElementById('hint');
+async function boot(){
+  try { await loadTerrain(); } catch(err){ console.warn('Terrain tiles unavailable:', err); }
+  if (liveTerrain){
+    elev0 = elevAtLatLon(CFG.lat0, CFG.lon0);
+    try { await loadImagery(); } catch(err){ console.warn('Imagery unavailable:', err); }
+  }
+  buildTerrain();
+  placeBuildings();
+  updateCamera();
+  if (liveTerrain){
+    statusEl.style.opacity = '0'; setTimeout(()=>statusEl.style.display='none', 500);
+    if (!liveImagery){ document.getElementById('attrib').textContent = 'Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL) · imagery unavailable'; }
+  } else {
+    statusEl.innerHTML = 'Live terrain and imagery could not load here.<small>Showing plan-derived terrain instead. Host this file on the web (for example GitHub Pages) and it loads the real geography of the spur.</small>';
+    document.getElementById('attrib').textContent = 'Terrain: plan-derived approximation (no live data)';
+    setTimeout(()=>{ statusEl.style.opacity='0'; setTimeout(()=>statusEl.style.display='none',500); }, 9000);
+  }
+  setTimeout(()=>hint.style.opacity='1', 800); setTimeout(()=>hint.style.opacity='0', 6000);
+}
+function animate(){ requestAnimationFrame(animate); updateLabels(); renderer.render(scene, camera); }
+updateCamera(); animate(); boot();
+</script>
+</body>
+</html>
