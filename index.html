@@ -71,6 +71,7 @@ setTimeout(function(){
   #calib{position:fixed;left:22px;bottom:22px;z-index:7;width:250px;display:none;background:rgba(20,17,13,.78);
     border:1px solid rgba(238,230,214,.2);border-radius:8px;padding:12px 14px;backdrop-filter:blur(6px);font-size:11.5px}
   #calib.show{display:block}
+  #calib.show ~ #conditions{display:none}
   #calib h2{font-size:12px;font-weight:600;margin-bottom:8px;color:#f2ead9}
   #calib label{display:flex;justify-content:space-between;align-items:center;margin:5px 0 2px;color:#cfc5ad}
   #calib label output{color:#f2ead9;font-variant-numeric:tabular-nums}
@@ -80,6 +81,8 @@ setTimeout(function(){
   #calib p{color:#b9af98;margin-top:6px;line-height:1.4}
 
   /* attribution + status */
+  #conditions{position:fixed;left:22px;bottom:40px;z-index:6;font-size:11.5px;color:rgba(238,230,214,.85);
+    pointer-events:none;letter-spacing:.02em;text-shadow:0 1px 6px rgba(0,0,0,.7)}
   #attrib{position:fixed;left:22px;bottom:22px;z-index:6;font-size:10.5px;color:rgba(238,230,214,.6);pointer-events:none;max-width:52vw}
   #attrib.hide{display:none}
   #status{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;text-align:center;
@@ -142,7 +145,8 @@ setTimeout(function(){
   <p>Match the keep and the long range to the wall lines visible in the imagery, then paste these values into CFG at the top of the script.</p>
 </div>
 
-<div id="attrib">Imagery © Esri, Maxar, Earthstar Geographics and the GIS user community · Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL)</div>
+<div id="conditions"></div>
+<div id="attrib">Imagery © Esri, Maxar, Earthstar Geographics and the GIS user community · Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL) · Weather: Open-Meteo (CC BY 4.0)</div>
 
 <script>
 /* ============================================================
@@ -211,15 +215,142 @@ view.appendChild(renderer.domElement);
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(2800,24,16), mat));
 })();
 
+/* ---------- lighting: real sun position and real weather at Montfort ----------
+   The sun is placed from an actual solar-position calculation for 33.045°N,
+   35.226°E at the current moment, and the sky, haze and light levels follow the
+   live observation from Open-Meteo. After dark the castle is lit by lamps. */
 const sun = new THREE.DirectionalLight(0xfff1d6, 0.7);
-sun.position.set(-500, 700, 450);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048,2048);
-Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:1800 });
+Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:2200 });
 sun.shadow.camera.updateProjectionMatrix();
 sun.shadow.bias = -0.0008;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xcfe0ef, 0x6e6250, 0.6));
+const hemi = new THREE.HemisphereLight(0xcfe0ef, 0x6e6250, 0.6);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0x9fb6d8, 0.0);
+moon.position.set(-300, 500, 260);
+scene.add(moon);
+
+// Solar position (NOAA low-precision algorithm) — returns altitude and azimuth
+// in radians, azimuth measured clockwise from true north.
+function solarPosition(date, lat, lon){
+  const rad = Math.PI/180;
+  const n = date.getTime()/86400000 + 2440587.5 - 2451545.0;
+  const L = ((280.460 + 0.9856474*n) % 360 + 360) % 360;
+  const g = (((357.528 + 0.9856003*n) % 360 + 360) % 360) * rad;
+  const lambda = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * rad;
+  const eps = (23.439 - 0.0000004*n) * rad;
+  const alpha = Math.atan2(Math.cos(eps)*Math.sin(lambda), Math.cos(lambda));
+  const delta = Math.asin(Math.sin(eps)*Math.sin(lambda));
+  const gmst = (((18.697374558 + 24.06570982441908*n) % 24) + 24) % 24;
+  const H = (gmst*15 + lon)*rad - alpha;
+  const p = lat*rad;
+  const alt = Math.asin(Math.sin(p)*Math.sin(delta) + Math.cos(p)*Math.cos(delta)*Math.cos(H));
+  let az = Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(p) - Math.tan(delta)*Math.cos(p)) + Math.PI;
+  return { alt, az };
+}
+
+// WMO weather codes → how the sky should look
+function skyFromCode(code, cloud){
+  const c = (cloud==null?0:cloud)/100;
+  if (code>=95) return { name:'thunderstorm', haze:0.95, grey:0.9, dim:0.15 };
+  if (code>=71 && code<=77) return { name:'snow', haze:0.8, grey:0.8, dim:0.35 };
+  if (code>=80) return { name:'showers', haze:0.8, grey:0.8, dim:0.25 };
+  if (code>=61) return { name:'rain', haze:0.75, grey:0.8, dim:0.25 };
+  if (code>=51) return { name:'drizzle', haze:0.6, grey:0.65, dim:0.4 };
+  if (code===45||code===48) return { name:'fog', haze:1.0, grey:0.7, dim:0.3 };
+  if (code===3) return { name:'overcast', haze:0.5, grey:0.65, dim:0.35 };
+  if (code===2) return { name:'partly cloudy', haze:0.3, grey:0.3, dim:0.75 };
+  if (code===1) return { name:'mainly clear', haze:0.18, grey:0.14, dim:0.9 };
+  return { name:'clear', haze:0.10 + c*0.2, grey:0.06 + c*0.2, dim:1.0 - c*0.25 };
+}
+
+const lamps = new THREE.Group(); scene.add(lamps);
+function buildLamps(){
+  // Lamps set where people actually move at night: the gate, the vault mouths,
+  // the length of the range, the keep and the outer ward.
+  const spots = [[-46,-21,4], [-46,-15,3], [-25,-9.5,3], [-19,-9.5,3], [-31,-9.5,3],
+                 [-6,8.5,3.5], [12,8.5,3.5], [28,8.5,3.5], [40,-11,4],
+                 [-20,22,3], [-55,-3,3], [10,-8,3]];
+  const bulb = new THREE.MeshBasicMaterial({ color:0xffcf8a });
+  spots.forEach(([u,v,hh])=>{
+    const {e,n} = fromFrame(u,v);
+    const y = groundAt(e,n) + CFG.offsetUp + hh;
+    const g = new THREE.Group();
+    g.position.set(CFG.offsetE, 0, -CFG.offsetN);
+    g.rotation.y = (90-CFG.axisBearing)*DEG;
+    const l = new THREE.PointLight(0xffb257, 1.15, 46, 2);
+    l.position.set(u, y, v);
+    g.add(l);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 6), bulb);
+    m.position.set(u, y, v); g.add(m);
+    lamps.add(g);
+  });
+}
+
+let ENV = null;
+function applyEnvironment(){
+  const now = new Date();
+  const sp = solarPosition(now, CFG.lat0, CFG.lon0);
+  const alt = sp.alt, deg = alt*180/Math.PI;
+  // scene axes: +x east, -z north
+  const dir = new THREE.Vector3(
+    Math.cos(alt)*Math.sin(sp.az), Math.sin(alt), -Math.cos(alt)*Math.cos(sp.az)
+  );
+  sun.position.copy(dir.clone().multiplyScalar(900));
+
+  const w = ENV || {};
+  const s = skyFromCode(w.code==null?0:w.code, w.cloud);
+  const night = deg < -1.0;
+  const dusk = deg >= -1.0 && deg < 8;
+
+  if (night){
+    sun.intensity = 0;
+    moon.intensity = 0.18;
+    hemi.intensity = 0.14;
+    hemi.color.setHex(0x2c3d55); hemi.groundColor.setHex(0x14171c);
+    skyTop.setHex(0x0a1220); skyHor.setHex(0x1d2634);
+    scene.fog.color.setHex(0x141b26);
+    scene.fog.near = 260; scene.fog.far = 1200;
+    lamps.visible = true;
+  } else {
+    const low = Math.max(0, Math.min(1, (10-deg)/12));   // warm, reddened near the horizon
+    const warm = new THREE.Color(0xfff1d6).lerp(new THREE.Color(0xff9d52), low*0.85);
+    sun.color.copy(warm);
+    sun.intensity = (0.28 + 0.72*Math.min(1, Math.max(0, Math.sin(Math.max(alt,0))*1.5))) * s.dim;
+    moon.intensity = 0;
+    hemi.intensity = 0.45 + s.haze*0.5;
+    hemi.color.setHex(0xcfe0ef); hemi.groundColor.setHex(0x6e6250);
+    const clearTop = new THREE.Color(0x5f8fb0), greyTop = new THREE.Color(0x7c848c);
+    const clearHor = new THREE.Color(0xeadcc2), greyHor = new THREE.Color(0xb9bcc0);
+    skyTop.copy(clearTop).lerp(greyTop, s.grey).lerp(new THREE.Color(0xd8a273), low*0.5);
+    skyHor.copy(clearHor).lerp(greyHor, s.grey).lerp(new THREE.Color(0xf0b382), low*0.6);
+    scene.fog.color.copy(skyHor);
+    scene.fog.near = 700 - s.haze*520;
+    scene.fog.far  = 1900 - s.haze*1250;
+    lamps.visible = dusk && deg < 4;
+  }
+  scene.background = skyTop;
+
+  const el = document.getElementById('conditions');
+  if (el){
+    const t = now.toLocaleTimeString('en-GB',{ hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jerusalem' });
+    const bits = [`Montfort, ${t} local`];
+    if (w.temp!=null) bits.push(`${Math.round(w.temp)}°C`);
+    bits.push(night ? 'night' : s.name);
+    if (deg > -1) bits.push(`sun ${deg.toFixed(0)}° above the horizon`);
+    el.textContent = bits.join(' · ');
+  }
+}
+async function loadWeather(){
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${CFG.lat0}&longitude=${CFG.lon0}&current=temperature_2m,weather_code,cloud_cover,is_day&timezone=auto`);
+    const j = await r.json();
+    if (j && j.current) ENV = { temp:j.current.temperature_2m, code:j.current.weather_code, cloud:j.current.cloud_cover };
+  } catch(err){ console.warn('Weather unavailable, using clear-sky defaults:', err); }
+}
+
 
 /* ---------- state ---------- */
 let elevRaster = null;   // {data, w, h, x0, y0, z}
@@ -435,8 +566,88 @@ function chaikin(pts, iterations){
   return p;
 }
 
+/* A curtain wall built as ONE continuous ribbon of geometry rather than a row of
+   boxes. Vertices are generated along the smoothed path with a left/right offset
+   for the thickness, so the enceinte curves smoothly — the west end of Montfort's
+   outer wall is explicitly "a curved wall" (Ch.8) and reads as a true arc in the
+   standing remains. Ruin heights vary continuously along the path instead of
+   stepping between segments. */
+function wallRibbon(state, pts, h, thick, ruinPattern, sink){
+  sink = sink==null ? 8 : sink;
+  const N = pts.length, half = thick/2;
+  const hs = [], nor = [];
+  for (let i=0;i<N;i++){
+    const t = i/(N-1);
+    if (!ruinPattern) hs.push(h);
+    else {
+      // smooth, continuous survival profile: a few stretches still stand to their
+      // original full height (Ch.4 n.9), the rest is reduced but never chopped
+      const w = 0.55 + 0.45*Math.sin(t*17.0)*Math.cos(t*6.3) + 0.18*Math.sin(t*3.1);
+      hs.push(h * Math.max(0.22, Math.min(1, 0.34 + 0.66*w)));
+    }
+    const a = pts[Math.max(0,i-1)], b = pts[Math.min(N-1,i+1)];
+    let dx=b[0]-a[0], dy=b[1]-a[1];
+    const L = Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+    nor.push([-dy, dx]);
+  }
+  const pos = [], idx = [];
+  for (let i=0;i<N;i++){
+    const [u,v] = pts[i], [nx,nv] = nor[i];
+    const uo=u+nx*half, vo=v+nv*half, ui=u-nx*half, vi=v-nv*half;
+    const gO = groundAt(...(()=>{const p=fromFrame(uo,vo);return [p.e,p.n];})());
+    const gI = groundAt(...(()=>{const p=fromFrame(ui,vi);return [p.e,p.n];})());
+    const g = Math.min(gO,gI) + CFG.offsetUp;
+    const yb = g - sink, yt = g + hs[i];
+    pos.push(uo,yb,vo,  uo,yt,vo,  ui,yt,vi,  ui,yb,vi);
+  }
+  for (let i=0;i<N-1;i++){
+    const a=i*4, b=(i+1)*4;
+    idx.push(a+0,b+0,b+1,  a+0,b+1,a+1);   // outer face
+    idx.push(a+1,b+1,b+2,  a+1,b+2,a+2);   // top
+    idx.push(a+3,a+2,b+2,  a+3,b+2,b+3);   // inner face
+  }
+  // end caps
+  idx.push(0,2,1, 0,3,2);
+  const e=(N-1)*4; idx.push(e+0,e+1,e+2, e+0,e+2,e+3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, stoneMaterial(state));
+  mesh.castShadow = mesh.receiveShadow = true;
+  groups[state].add(mesh);
+  return hs;
+}
+
+/* Dark inner shell, so a window shows an unlit interior rather than daylight
+   straight through the far wall. Rendered back-faces-only, so it is invisible
+   from outside and only seen through the openings. */
+const interiorMat = new THREE.MeshStandardMaterial({ color:0x241f18, roughness:1, metalness:0, side:THREE.BackSide });
+function interiorShell(state, u, v, su, sv, h, rot){
+  const geo = new THREE.BoxGeometry(su, h, sv);
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  const m = new THREE.Mesh(geo, interiorMat);
+  m.position.set(u, base + h/2 - 1.5, v); m.rotation.y = rot||0;
+  groups[state].add(m);
+}
+
+/* Grisaille window glass is documented at Montfort — painted and coloured
+   fragments were recovered in 1926 and again by the MCP, and are published in
+   full (Ch.17). Glazing therefore belongs in the c. 1240 state, on the domestic
+   and ceremonial openings; slits, vault mouths and gate passages stay open. */
+const glassMat = new THREE.MeshStandardMaterial({
+  color:0xcfe0d2, roughness:0.15, metalness:0, transparent:true, opacity:0.34,
+  emissive:0x2b3a33, emissiveIntensity:0.35, side:THREE.DoubleSide, depthWrite:false
+});
+
+// Points along a circular arc, for wall runs that are actually round.
+function arcPoints(cu, cv, r, a0, a1, n){
+  const pts = [];
+  for (let i=0;i<=n;i++){ const t = a0 + (a1-a0)*i/n; pts.push([cu + r*Math.cos(t), cv + r*Math.sin(t)]); }
+  return pts;
+}
+
 // Drop points that sit too close together, so heavy smoothing doesn't turn into
-// hundreds of near-zero-length wall segments.
+// hundreds of near-zero-length steps along the wall.
 function resample(pts, minLen){
   const out = [pts[0]];
   for (let i=1;i<pts.length-1;i++){
@@ -525,6 +736,20 @@ function wallPanel(state, u, v, su, thick, wallH, openings, rot, sink){
   geo.translate(0,0,-thick/2);
   const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
   addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base, v, rot||0);
+
+  // glazing, set back within the reveal so the opening still reads as deep
+  if (state === 'peak'){
+    const c = Math.cos(rot||0), s = Math.sin(rot||0);
+    (openings||[]).forEach(o=>{
+      if (!o.glass) return;
+      const gy = base + o.y + o.h/2;
+      const gz = thick*0.28;                       // recessed, not flush
+      const wx = u + o.x*c - gz*s, wz = v + o.x*s + gz*c;
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(o.w*0.94, o.h*0.94), glassMat);
+      pane.position.set(wx, gy, wz); pane.rotation.y = rot||0;
+      groups.peak.add(pane);
+    });
+  }
 }
 // Corbelled machicolation projecting from a wall head, over a gate.
 function machicolation(state, u, v, width, topY, rot, side){
@@ -747,22 +972,22 @@ function placeBuildings(){
       win.push({ x, y:3.2, w:2.1, h:3.4, kind:'arch' });   // ground-floor bay windows
       win.push({ x, y:10.6, w:1.6, h:2.8, kind:'arch' });  // upper domestic apartments
     }
-    wallPanel('peak', 9.5, 7.0, 46, 1.8, 17, win, 0);
+    wallPanel('peak', 9.5, 7.0, 46, 2.2, 17, win, 0);
   })();
   // North wall: a door near the west end leading out toward the gate tower (Plate 8.6),
   // with arrow embrasures from the upper storey above (Plate 8.11). The upper storey
   // was domestic, so it carried real windows too — these are what read as large dark
   // openings in the standing wall today.
-  wallPanel('peak', 9.5, -6.0, 46, 2.4, 17, [
+  wallPanel('peak', 9.5, -6.0, 46, 2.6, 17, [
     { x:-18.0, y:0,    w:1.5, h:2.6, kind:'arch' },
-    { x:-18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
-    { x:-11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
-    { x:-3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x:-18.5, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
+    { x:-11.1, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
+    { x:-3.7, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
     { x: 3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
     { x: 11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
     { x: 18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
-    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
-    { x:-7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:-7.4, y:10.4, w:1.7, h:3.0, kind:'arch', glass:true },
     { x: 0,    y:10.4, w:1.7, h:3.0, kind:'arch' },
     { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
     { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
@@ -772,10 +997,10 @@ function placeBuildings(){
   ], 0);
   // West wall of the enclosure: two windows and a door (later blocked) with the
   // in-situ triangular bases of two arrow slits above them (Plates 8.4, 8.5).
-  wallPanel('peak', -13.2, 0.5, 12.4, 1.6, 17, [
+  wallPanel('peak', -13.2, 0.5, 12.4, 2.2, 17, [
     { x:0,    y:0,   w:1.6, h:2.8, kind:'arch' },
-    { x:-3.4, y:4.6, w:1.8, h:2.2, kind:'rect' },
-    { x:3.4,  y:4.6, w:1.8, h:2.2, kind:'rect' },
+    { x:-3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
+    { x:3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
     { x:-2.2, y:8.6, w:0.4, h:1.9, kind:'slit' },
     { x:2.2,  y:8.6, w:0.4, h:1.9, kind:'slit' }
   ], Math.PI/2);
@@ -796,48 +1021,61 @@ function placeBuildings(){
     { x: 5.6, y:0, w:7.5, h:7.0, kind:'arch' }
   ];
   // north face, peak: vault ends below, Great Hall windows, apartments above
-  wallPanel('peak', -25, -7.4, 23, 1.9, 32, vaultArch.concat([
-    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:0,    y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:6.5,  y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch' },
-    { x:0,    y:22.5, w:1.7, h:3.0, kind:'arch' },
-    { x:6.5,  y:22.5, w:1.7, h:3.0, kind:'arch' }
+  wallPanel('peak', -25, -7.4, 23, 2.4, 32, vaultArch.concat([
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true }
   ]), 0);
   // south face, peak: blank support wall below, hall and apartments lit above
-  wallPanel('peak', -25, 6.9, 23, 1.6, 32, [
-    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:0,    y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:6.5,  y:12.5, w:2.2, h:4.2, kind:'arch' },
-    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch' },
-    { x:0,    y:22.5, w:1.7, h:3.0, kind:'arch' },
-    { x:6.5,  y:22.5, w:1.7, h:3.0, kind:'arch' }
+  wallPanel('peak', -25, 6.9, 23, 2.2, 32, [
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true }
   ], 0);
   // west end wall, peak — the wing's gable end also had to be lit
-  wallPanel('peak', -36.2, -0.5, 14.0, 1.6, 32, [
-    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
+  wallPanel('peak', -36.2, -0.5, 14.0, 2.2, 32, [
+    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'arch', glass:true },
     { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
-    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
+    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'arch', glass:true },
     { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
     { x: 0,   y:5.0,  w:0.45, h:2.0, kind:'slit' }
   ], Math.PI/2);
   // ruin: the two vaults are the one part of the west range still standing (Ch.4)
   box('ruin', -25, 0.8, 23, 11.0, 7.2, 0.35);                    // vault body, set back
-  wallPanel('ruin', -25, -7.4, 23, 1.9, 8.6, vaultArch, 0);      // the surviving arch pair
+  wallPanel('ruin', -25, -7.4, 23, 2.4, 8.6, vaultArch, 0);      // the surviving arch pair
   box('ruin', -25, 6.9, 23, 2.0, 10.5, 0.45);                    // south support wall stub
   cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
 
 
-  // small vault / cistern structure further west
-  box('peak', -42, 1, 11, 10, 8);
-  box('ruin', -42, 1, 11, 10, 2.4, 0.7);
+  /* WESTERN END OF THE UPPER WARD — the sources are consistent that this
+     terminates in a round wall, not a rectangular block: Ch.4 refers to "the
+     round wall near the western gate tower", Ch.5 to "the semi-circular wall at
+     the western end of the upper ward" (Van de Velde drew it, with a window in
+     its top), Ch.8 describes "a curved wall on the west", and Rey drew it round
+     as early as 1871. Inside it sits the westernmost structure of the upper
+     castle, attached to the western side of chamber L, over a rectangular
+     barrel-vaulted cistern measuring 11 by 6 m (Ch.9). */
+  const westArc      = arcPoints(-39, 1, 11.0, Math.PI/2, 3*Math.PI/2, 44);
+  const westArcCoarse= arcPoints(-39, 1, 11.0, Math.PI/2, 3*Math.PI/2, 13);
+  wallRibbon('peak', westArc, 8.0, 2.8, false);
+  wallRibbon('ruin', westArc, 8.0, 2.8, true);
+  crenellatePolyline(westArcCoarse, (u,v)=>topYOf(u,v,8.0), {mD:1.7, mW:1.2, gap:1.1});
+  // the vaulted cistern structure it encloses, 11 m (N–S) by 6 m (E–W)
+  box('peak', -42.5, 1, 6, 11, 6.5);
+  box('ruin', -42.5, 1, 6, 11, 2.6, 0.6);
 
   // WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). The north face
   // carries the passage arch, an arrow embrasure on the middle floor directly
   // above it, and a machicolation on the floor above. Opening sizes scaled off
   // the measured south-face drawing, Plate 9.39.
   box('peak', -46, -17, 7, 5.6, 17, 0, 0.12);
-  wallPanel('peak', -46, -19.9, 7, 1.6, 17, [
+  wallPanel('peak', -46, -19.9, 7, 1.9, 17, [
     { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
     { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
     { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
@@ -845,7 +1083,7 @@ function placeBuildings(){
   machicolation('peak', -46, -19.9, 5.4, topYOf(-46,-17,15.4), 0.12, -1);
   // the ruin keeps the tower nearly to full height — it is the best-preserved gate
   box('ruin', -46, -17, 7, 5.6, 15.5, 0.35, 0.12);
-  wallPanel('ruin', -46, -19.9, 7, 1.6, 15.0, [
+  wallPanel('ruin', -46, -19.9, 7, 1.9, 15.0, [
     { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
     { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
     { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
@@ -861,8 +1099,8 @@ function placeBuildings(){
   // subdivided until it reads as a true curve following the spur, not a faceted line
   const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
   const outer = resample(chaikin(outerRaw, 4), 1.6);
-  wall('peak', outer, 5.5, 1.5, false);
-  wall('ruin', outer, 5.5, 1.5, true);
+  wallRibbon('peak', outer, 5.5, 1.6, false);
+  wallRibbon('ruin', outer, 5.5, 1.6, true);
 
   /* The best-preserved stretch of the outer wall: 20.5 m long, 1.3 m thick and
      9 m high — its original height — pierced by four openings 0.85–0.95 m wide
@@ -913,6 +1151,14 @@ function placeBuildings(){
 
   // MILL & GUESTHOUSE — Nahal Kziv valley (Pringle & Leach 1986; Ch.10)
   placeMill();
+
+  // dark interiors, so every opening shows an unlit room rather than daylight
+  interiorShell('peak', 9.5, 0.5, 43.0, 11.4, 16.4, 0);      // central range
+  interiorShell('peak', -25, -0.5, 21.5, 11.6, 31.0, 0);     // western wing
+  interiorShell('peak', 40, 0, 13.4, 18.4, 23.0, 0);         // keep
+  interiorShell('peak', -46, -17, 5.6, 4.4, 16.4, 0.12);     // gate tower
+  interiorShell('ruin', -25, 0.8, 21.5, 10.0, 6.8, 0);       // surviving vaults
+
   rebuildLabels();
   setEra(currentEra);
 }
@@ -1015,6 +1261,10 @@ async function boot(){
   }
   buildTerrain();
   placeBuildings();
+  buildLamps();
+  await loadWeather();
+  applyEnvironment();
+  setInterval(applyEnvironment, 60000);   // keep the light tracking the real sun
   updateCamera();
   if (liveTerrain){
     statusEl.style.opacity = '0'; setTimeout(()=>statusEl.style.display='none', 500);
