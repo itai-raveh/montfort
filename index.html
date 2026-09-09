@@ -366,10 +366,12 @@ function buildTerrain(){
 }
 
 /* ---------- buildings ---------- */
-const matPeak = new THREE.MeshStandardMaterial({ color:0xeadfc5, roughness:0.85, metalness:0.02 });
-const matRuin = new THREE.MeshStandardMaterial({ color:0xbcb08f, roughness:0.95, metalness:0.02 });
+const matPeak = new THREE.MeshStandardMaterial({ color:0xe4d7b4, roughness:0.9, metalness:0.02 });
+const matRuin = new THREE.MeshStandardMaterial({ color:0xc9bb92, roughness:0.95, metalness:0.02 });
+const roofMat = new THREE.MeshStandardMaterial({ color:0x7a5233, roughness:0.85, metalness:0.02, side:THREE.DoubleSide });
 const edgePeak = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.55 });
 const edgeRuin = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.4 });
+function stoneMaterial(state){ return state==='peak' ? matPeak : matRuin; }
 const FOUND = 10; // metres of "foundation" buried into the slope so nothing floats
 
 function jagTop(geo, amount, seed){
@@ -390,15 +392,14 @@ function box(state, u, v, su, sv, h, jag, rot){
   const base = groundAt(e,n) + CFG.offsetUp;
   const geo = new THREE.BoxGeometry(su, h+FOUND, sv, 1, 1, 1);
   if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u+v); geo.translate(0,-(h+FOUND)/2,0); }
-  const g = groups[state];
-  addToGroup(g, geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, u, base + (h-FOUND)/2, v, rot||0);
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base + (h-FOUND)/2, v, rot||0);
 }
-function cylinder(state, u, v, r, h, segs, jag){
+function cylinder(state, u, v, r, h, segs, jag, taper){
   const {e,n} = fromFrame(u,v);
   const base = groundAt(e,n) + CFG.offsetUp;
-  const geo = new THREE.CylinderGeometry(r, r*1.03, h+FOUND, segs||16, 1, false);
+  const geo = new THREE.CylinderGeometry(r, r*(taper||1.03), h+FOUND, segs||20, 1, false);
   if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u*2+v); geo.translate(0,-(h+FOUND)/2,0); }
-  addToGroup(groups[state], geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v);
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v);
 }
 function wall(state, pts, h, thick, ruinPattern){
   for (let i=0;i<pts.length-1;i++){
@@ -410,6 +411,155 @@ function wall(state, pts, h, thick, ruinPattern){
     box(state, cu, cv, len+0.6, thick, hh, jag, -ang);
   }
 }
+// Chaikin corner-cutting: turns a hand-placed polyline into a smoothly curved one
+// (the outer enceinte follows the natural curve of the spur, not straight facets —
+// visible in every plan since Kitchener's, and in the ruin photos, Ch.4 Plate 4.2).
+function chaikin(pts, iterations){
+  let p = pts.slice();
+  for (let it=0; it<(iterations||2); it++){
+    const np = [p[0]];
+    for (let i=0;i<p.length-1;i++){
+      const [x1,y1]=p[i], [x2,y2]=p[i+1];
+      np.push([x1+0.25*(x2-x1), y1+0.25*(y2-y1)], [x1+0.75*(x2-x1), y1+0.75*(y2-y1)]);
+    }
+    np.push(p[p.length-1]); p = np;
+  }
+  return p;
+}
+
+/* ---------- true open arches (real voids, not a texture trick) ----------
+   The most recognisable feature of the standing ruin (Ch.4 Plate 4.2; the west
+   range undercroft is explicitly the one place "no vaulting remaining intact"
+   does NOT apply — Ch.4) is a row of open, round-headed arches. Built as a real
+   Shape with holes, extruded — you see straight through them, not a painted-on
+   arch. */
+function archArcade(state, u, v, su, thick, wallH, count, archW, archH, sill, rot){
+  sill = sill||0;
+  const shape = new THREE.Shape();
+  shape.moveTo(-su/2, -FOUND); shape.lineTo(su/2,-FOUND); shape.lineTo(su/2, wallH); shape.lineTo(-su/2, wallH); shape.lineTo(-su/2,-FOUND);
+  const gap = (su - count*archW) / (count+1);
+  for (let i=0;i<count;i++){
+    const x0 = -su/2 + gap + i*(archW+gap);
+    const cx = x0 + archW/2, r = archW/2;
+    const springY = sill + Math.max(0.05, archH - r);
+    const hole = new THREE.Path();
+    hole.moveTo(x0, sill); hole.lineTo(x0, springY);
+    hole.absarc(cx, springY, r, Math.PI, 0, true);
+    hole.lineTo(x0+archW, sill); hole.lineTo(x0, sill);
+    shape.holes.push(hole);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled:false, curveSegments:16 });
+  geo.translate(0, 0, -thick/2);
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base, v, rot||0);
+}
+
+/* ---------- real openings, cut through the masonry ----------
+   Every dimension below comes from the published record rather than invention:
+   • outer-wall windows: 0.85–0.95 m wide inside, 0.40 m outside (a true splay),
+     1.1–1.3 m high, 1.92–2.55 m apart, sills 7 m above the exterior wall base,
+     in a stretch 20.5 m long × 1.3 m thick × 9 m high — its original height (Ch.5)
+   • gate tower E: passage arch c. 2.8 m wide, arched recess above c. 2.4 m wide
+     holding a slit c. 0.85 × 1.3 m; scaled off the measured south-face drawing
+     (Ch.9, Plate 9.39, which carries a 4 m scale bar)
+   • central building: two windows and a (later blocked) door in the west wall,
+     two arrow slits above them on triangular bases, a door near the west end of
+     the north wall, and large windows between the pilasters of the south wall
+     (Ch.8, Plates 8.4–8.7)
+   • machicolations over gates C, D and the top floor of gate tower E (Ch.9)      */
+function holeRect(x, y, w, h){
+  const p = new THREE.Path();
+  p.moveTo(x,y); p.lineTo(x+w,y); p.lineTo(x+w,y+h); p.lineTo(x,y+h); p.lineTo(x,y);
+  return p;
+}
+function holeArch(x, y, w, h){
+  const r = w/2, cx = x+r, spring = y + Math.max(0.05, h-r);
+  const p = new THREE.Path();
+  p.moveTo(x,y); p.lineTo(x,spring);
+  p.absarc(cx, spring, r, Math.PI, 0, true);
+  p.lineTo(x+w, y); p.lineTo(x, y);
+  return p;
+}
+function holeSlit(x, y, w, h){
+  // arrow slit on the triangular base recorded in situ on the west wall (Plate 8.4)
+  const tri = Math.min(h*0.4, w*2.0);
+  const p = new THREE.Path();
+  p.moveTo(x+w/2, y); p.lineTo(x+w, y+tri); p.lineTo(x+w, y+h);
+  p.lineTo(x, y+h); p.lineTo(x, y+tri); p.lineTo(x+w/2, y);
+  return p;
+}
+// A wall face built as a real extruded panel with the openings cut clean through.
+// openings: [{x (centre, along the wall), y (sill above base), w, h, kind}]
+function wallPanel(state, u, v, su, thick, wallH, openings, rot, sink){
+  sink = (sink==null) ? FOUND : sink;
+  const shape = new THREE.Shape();
+  shape.moveTo(-su/2,-sink); shape.lineTo(su/2,-sink); shape.lineTo(su/2,wallH);
+  shape.lineTo(-su/2,wallH); shape.lineTo(-su/2,-sink);
+  (openings||[]).forEach(o=>{
+    const x = o.x - o.w/2;
+    shape.holes.push(o.kind==='arch' ? holeArch(x,o.y,o.w,o.h)
+                   : o.kind==='slit' ? holeSlit(x,o.y,o.w,o.h)
+                   : holeRect(x,o.y,o.w,o.h));
+  });
+  const geo = new THREE.ExtrudeGeometry(shape, { depth:thick, bevelEnabled:false, curveSegments:14 });
+  geo.translate(0,0,-thick/2);
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base, v, rot||0);
+}
+// Corbelled machicolation projecting from a wall head, over a gate.
+function machicolation(state, u, v, width, topY, rot, side){
+  rot = rot||0; side = side||1;
+  const n = Math.max(3, Math.round(width/1.15));
+  const cw=0.42, cd=1.15, chh=0.6;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  for (let i=0;i<n;i++){
+    const t = n===1 ? 0.5 : i/(n-1);
+    const lx = -width/2 + width*t, lz = side*cd*0.42;
+    const uu = u + lx*c - lz*s, vv = v + lx*s + lz*c;
+    const geo = new THREE.BoxGeometry(cw, chh, cd);
+    const mesh = new THREE.Mesh(geo, stoneMaterial(state)); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY-chh/2, vv); mesh.rotation.y = rot;
+    groups[state].add(mesh);
+    const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), state==='peak'?edgePeak:edgeRuin);
+    ed.position.copy(mesh.position); ed.rotation.y = rot; groups[state].add(ed);
+  }
+  // the projecting floor slab the corbels carry
+  const slabD = cd*0.95, lz = side*cd*0.5;
+  const geo = new THREE.BoxGeometry(width, 0.45, slabD);
+  const uu = u - lz*s, vv = v + lz*c;
+  const mesh = new THREE.Mesh(geo, stoneMaterial(state)); mesh.castShadow = mesh.receiveShadow = true;
+  mesh.position.set(uu, topY+0.22, vv); mesh.rotation.y = rot; groups[state].add(mesh);
+  const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), state==='peak'?edgePeak:edgeRuin);
+  ed.position.copy(mesh.position); ed.rotation.y = rot; groups[state].add(ed);
+}
+// Battered skirt at the foot of a rectangular tower — the keep has "a steep talus"
+// on north, south and probably east (Ch.9).
+function talusSkirt(state, u, v, topW, topD, spread, h, rot){
+  const geo = new THREE.CylinderGeometry(1, 1+spread, h+FOUND, 4, 1, false);
+  geo.rotateY(Math.PI/4);
+  geo.scale(topW/Math.SQRT2, 1, topD/Math.SQRT2);
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v, rot||0);
+}
+
+/* ---------- battered round tower (talus base + straight shaft) ----------
+   Real Crusader corner towers flare outward at the base (a talus, both a
+   defensive glacis and extra footing strength) then rise as a plain cylindrical
+   shaft — visible clearly in current photographs of the round tower. A single
+   linear-taper cylinder across the whole height reads wrong; two stacked
+   pieces gets the silhouette right. */
+function roundTower(state, u, v, rTop, rBase, talusH, shaftH, segs){
+  segs = segs||24;
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  const mat = stoneMaterial(state), edgeMat = state==='peak'?edgePeak:edgeRuin;
+  const g1 = new THREE.CylinderGeometry(rTop, rBase, talusH+FOUND, segs, 1, false);
+  addToGroup(groups[state], g1, mat, edgeMat, u, base+(talusH-FOUND)/2, v);
+  if (shaftH > 0.3){
+    const g2 = new THREE.CylinderGeometry(rTop, rTop*1.02, shaftH, segs, 1, false);
+    addToGroup(groups[state], g2, mat, edgeMat, u, base+talusH+shaftH/2, v);
+  }
+}
+
 
 /* ---------- silhouette detail: roofs + crenellations (peak state only) ----------
    Domestic ranges (central range, western wing) get pitched timber roofs — precedent
@@ -417,7 +567,6 @@ function wall(state, pts, h, thick, ruinPattern){
    structural pine/cypress timber (Ch.22). Defensive elements (keep, outer wall, gate
    tower, corner tower) get flat crenellated fighting platforms, not pointed caps —
    the standard Crusader military-architecture roofline, not a storybook one. */
-const roofMat = new THREE.MeshStandardMaterial({ color:0x7a5233, roughness:0.85, metalness:0.02, side:THREE.DoubleSide });
 const roofEdgeMat = new THREE.LineBasicMaterial({ color:0x2e2013, transparent:true, opacity:0.5 });
 
 function topYOf(u,v,h){ const {e,n} = fromFrame(u,v); return groundAt(e,n) + CFG.offsetUp + h; }
@@ -451,7 +600,7 @@ function crenellateEdge(u1, v1, u2, v2, topY, opts){
     const t = (startOff + i*period)/len;
     const uu = u1+du*t, vv = v1+dv*t;
     const geo = new THREE.BoxGeometry(mW, mH, mD);
-    const mesh = new THREE.Mesh(geo, matPeak); mesh.castShadow = mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geo, stoneMaterial('peak', mW, mH)); mesh.castShadow = mesh.receiveShadow = true;
     mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -ang; groups.peak.add(mesh);
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
     edges.position.copy(mesh.position); edges.rotation.y = -ang; groups.peak.add(edges);
@@ -483,10 +632,64 @@ function crenellateRing(u, v, r, topY, count){
     const amid = ((i+0.5)/count)*Math.PI*2;
     const uu = u+Math.cos(amid)*r, vv = v+Math.sin(amid)*r;
     const geo = new THREE.BoxGeometry(mW, mH, mD);
-    const mesh = new THREE.Mesh(geo, matPeak); mesh.castShadow = mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geo, stoneMaterial('peak', mW, mH)); mesh.castShadow = mesh.receiveShadow = true;
     mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -(amid+Math.PI/2); groups.peak.add(mesh);
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
     edges.position.copy(mesh.position); edges.rotation.y = -(amid+Math.PI/2); groups.peak.add(edges);
+  }
+}
+
+/* ---------- openings: windows, doorway, arrow slits (peak state only) ----------
+   Faked as thin decal planes set just proud of the wall face rather than true
+   boolean cutouts — visually reads as an opening without a CSG library. Arched
+   for domestic openings (consistent with the Gothic-arched fragments recovered
+   in the Great Hall and central range, Ch.9/Ch.20); narrow slits for the keep,
+   consistent with its defensive character. */
+function makeOpeningTexture(kind){
+  const cw=96, ch=160;
+  const canvas=document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,cw,ch);
+  const grad = ctx.createLinearGradient(0,0,0,ch);
+  grad.addColorStop(0,'rgba(18,14,10,0.97)'); grad.addColorStop(1,'rgba(30,24,17,0.9)');
+  ctx.fillStyle = grad;
+  if (kind==='slit'){
+    const w=cw*0.16, x=(cw-w)/2, r=w/2, topY=ch*0.22;
+    ctx.beginPath(); ctx.moveTo(x,ch); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch); ctx.closePath(); ctx.fill();
+  } else if (kind==='door'){
+    const w=cw*0.62, x=(cw-w)/2, r=w/2, topY=ch*0.1;
+    ctx.beginPath(); ctx.moveTo(x,ch); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch); ctx.closePath(); ctx.fill();
+  } else {
+    const w=cw*0.46, x=(cw-w)/2, r=w/2, topY=ch*0.12;
+    ctx.beginPath(); ctx.moveTo(x,ch*0.96); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch*0.96); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(70,58,40,0.7)'; ctx.lineWidth=3; ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+const openingTex = { arch: makeOpeningTexture('arch'), slit: makeOpeningTexture('slit'), door: makeOpeningTexture('door') };
+function addOpening(u, v, su, sv, rot, side, uOffset, y, w, h, kind){
+  // side: +1 = the building's local +v face, -1 = the -v face; uOffset is distance
+  // along the wall from its centre; y is the sill height above local ground.
+  const hd = sv/2 + 0.06;
+  const lx = uOffset, lz = side*hd;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const wu = u + lx*c - lz*s, wv = v + lx*s + lz*c;
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshBasicMaterial({ map: openingTex[kind]||openingTex.arch, transparent:true, alphaTest:0.08, depthWrite:false, side:THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(wu, base + y + h/2, wv);
+  mesh.rotation.y = rot + (side===1 ? 0 : Math.PI);
+  groups.peak.add(mesh);
+}
+// place a symmetric row of openings along a wall's +v (or -v) face
+function openingRow(u, v, su, sv, rot, side, y, w, h, count, kind, margin){
+  margin = margin==null ? Math.max(w*1.6, 2.2) : margin;
+  const span = su - margin*2;
+  for (let i=0;i<count;i++){
+    const t = count===1 ? 0.5 : i/(count-1);
+    addOpening(u, v, su, sv, rot, side, -span/2 + span*t, y, w, h, kind);
   }
 }
 
@@ -504,6 +707,8 @@ function placeBuildings(){
   // KEEP — rectangle + apsidal (D-shaped) east end
   box('peak', 40, 0, 15, 20, 24);
   cylinder('peak', 47.5, 0, 10, 24, 20);
+  talusSkirt('peak', 40, 0, 15, 20, 0.16, 5);          // "a steep talus" at the base (Ch.9)
+  talusSkirt('ruin', 40, 0, 15, 20, 0.16, 3.2);
   // ruin: "above the cistern only two fragments of the inner faces are standing" (Ch.4)
   box('ruin', 40, 0, 15, 20, 2.2, 0.9);
   cylinder('ruin', 47.5, 0, 10, 2.2, 20, 0.9);
@@ -511,34 +716,122 @@ function placeBuildings(){
   box('ruin', 39, 5.5, 5, 1.4, 6, 0.5);
 
   // CENTRAL / DOMESTIC RANGE — 6 free-standing piers, 12 bays, 2 storeys (Ch.4, Ch.8)
-  box('peak', 9.5, 0.5, 46, 14, 17);
+  // Core set back, then real pierced faces on the three walls we have evidence for.
+  box('peak', 9.5, 0.5, 44.4, 12.4, 17);
+  // South wall: "large windows in some, perhaps all of the bays" between the
+  // pilasters (Ch.8) — six bays on this side, plus the upper apartment storey.
+  (function(){
+    const win = [];
+    for (let i=0;i<6;i++){
+      const x = -18.5 + i*7.4;
+      win.push({ x, y:3.2, w:2.1, h:3.4, kind:'arch' });   // ground-floor bay windows
+      win.push({ x, y:10.6, w:1.6, h:2.8, kind:'arch' });  // upper domestic apartments
+    }
+    wallPanel('peak', 9.5, 7.0, 46, 1.8, 17, win, 0);
+  })();
+  // North wall: a door near the west end leading out toward the gate tower (Plate 8.6),
+  // with an arrow embrasure above from the upper storey (Plate 8.11).
+  wallPanel('peak', 9.5, -6.0, 46, 2.4, 17, [
+    { x:-18.0, y:0,    w:1.5, h:2.6, kind:'arch' },
+    { x:-18.0, y:10.8, w:0.45, h:2.2, kind:'slit' },
+    { x:-4.0,  y:10.8, w:0.45, h:2.2, kind:'slit' },
+    { x:10.0,  y:10.8, w:0.45, h:2.2, kind:'slit' }
+  ], 0);
+  // West wall of the enclosure: two windows and a door (later blocked) with the
+  // in-situ triangular bases of two arrow slits above them (Plates 8.4, 8.5).
+  wallPanel('peak', -13.2, 0.5, 12.4, 1.6, 17, [
+    { x:0,    y:0,   w:1.6, h:2.8, kind:'arch' },
+    { x:-3.4, y:4.6, w:1.8, h:2.2, kind:'rect' },
+    { x:3.4,  y:4.6, w:1.8, h:2.2, kind:'rect' },
+    { x:-2.2, y:8.6, w:0.4, h:1.9, kind:'slit' },
+    { x:2.2,  y:8.6, w:0.4, h:1.9, kind:'slit' }
+  ], Math.PI/2);
   box('ruin', 9.5, -5.7, 46, 2.4, 2.6, 0.7);     // north wall, "hardly surviving above bedrock" in places
   box('ruin', 9.5, 6.3, 46, 2.0, 4.0, 0.7);      // south wall
   box('ruin', -13, 0.5, 2.0, 12, 3.5, 0.6);      // west dividing wall W(A)2
   for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
 
   // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
-  box('peak', -25, -0.5, 23, 16, 32);
-  box('ruin', -25, -0.5, 23, 16, 7.0, 0.6);      // undercroft survives (Ch.4)
-  box('ruin', -25, 6.8, 23, 2.2, 10.5, 0.4);     // south wall "to about a third of its height" (Ch.4)
-  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);      // octagonal pier in situ (Ch.9, Ch.20)
+  box('peak', -25, -0.5, 23, 14.4, 32);
+  // South face: blank 11 m support wall below, then the Great Hall, then the
+  // Grand Master's / castellan's apartments — both storeys lit (Ch.8, Ch.20).
+  wallPanel('peak', -25, 7.2, 23, 1.6, 32, [
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:0,    y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:6.5,  y:12.5, w:2.2, h:4.2, kind:'arch' },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch' },
+    { x:0,    y:22.5, w:1.7, h:3.0, kind:'arch' },
+    { x:6.5,  y:22.5, w:1.7, h:3.0, kind:'arch' }
+  ], 0);
+  // ruin: the undercroft is the one part of the west range where vaulting survives
+  // intact (Ch.4) — modelled as a real open arcade, not a solid block.
+  box('ruin', -25, -1.6, 23, 12.8, 7.0, 0.35);          // undercroft body, set back from the face
+  archArcade('ruin', -25, 7.5, 23, 1.7, 7.5, 3, 4.6, 5.6, 0, 0);   // the arcade face itself
+  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);             // octagonal pier in situ (Ch.9, Ch.20)
 
   // small vault / cistern structure further west
   box('peak', -42, 1, 11, 10, 8);
   box('ruin', -42, 1, 11, 10, 2.4, 0.7);
 
-  // WESTERN GATE TOWER — three storeys, 17 m, well preserved (Ch.9)
-  box('peak', -46, -17, 7, 7, 17, 0, 0.12);
-  box('ruin', -46, -17, 7, 7, 15.5, 0.35, 0.12);
+  // WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). The north face
+  // carries the passage arch, an arrow embrasure on the middle floor directly
+  // above it, and a machicolation on the floor above. Opening sizes scaled off
+  // the measured south-face drawing, Plate 9.39.
+  box('peak', -46, -17, 7, 5.6, 17, 0, 0.12);
+  wallPanel('peak', -46, -19.9, 7, 1.6, 17, [
+    { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
+    { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
+    { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
+  ], 0.12);
+  machicolation('peak', -46, -19.9, 5.4, topYOf(-46,-17,15.4), 0.12, -1);
+  // the ruin keeps the tower nearly to full height — it is the best-preserved gate
+  box('ruin', -46, -17, 7, 5.6, 15.5, 0.35, 0.12);
+  wallPanel('ruin', -46, -19.9, 7, 1.6, 15.0, [
+    { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
+    { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
+    { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
+  ], 0.12);
 
-  // semi-circular tower on the southern outer enceinte
-  cylinder('peak', -20, 20, 4.2, 10, 14);
-  cylinder('ruin', -20, 20, 4.2, 3.5, 14, 0.6);
+  // ROUND TOWER on the southern outer enceinte — flared talus base, straight shaft
+  roundTower('peak', -20, 20, 4.2, 6.0, 4.5, 6.5);
+  roundTower('ruin', -20, 20, 4.2, 6.0, 4.0, 1.2);
 
-  // OUTER ENCEINTE — down the north flank, round the west end, back along the south
-  const outer = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
+  // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
+  // Chaikin-smoothed so it follows the spur's natural curve rather than sharp facets
+  const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
+  const outer = chaikin(outerRaw, 2);
   wall('peak', outer, 5.5, 1.5, false);
   wall('ruin', outer, 5.5, 1.5, true);
+
+  /* The best-preserved stretch of the outer wall: 20.5 m long, 1.3 m thick and
+     9 m high — its original height — pierced by four openings 0.85–0.95 m wide
+     inside and 0.40 m outside, 1.1–1.3 m high, 1.92–2.55 m apart, their sills 7 m
+     above the exterior base (Ch.5). Three corbels above them carried the roof
+     beams of chambers built against the wall. This stretch still stands, so it
+     is modelled in BOTH states. The splay is real: a wide inner panel and a
+     narrow-slotted outer skin. */
+  [['peak',9.0],['ruin',9.0]].forEach(([st,hh])=>{
+    const inner = [], outerSlots = [];
+    const pitch = 3.15;                       // 0.9 m opening + 2.25 m pier
+    for (let i=0;i<4;i++){
+      const x = -1.5*pitch + i*pitch;
+      inner.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' });      // 0.85–0.95 m inside
+      outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' }); // 0.40 m outside
+    }
+    wallPanel(st, -6, -19.4, 20.5, 0.9, hh, inner, -0.025);
+    wallPanel(st, -6, -20.1, 20.5, 0.45, hh, outerSlots, -0.025);
+    // three corbels above the openings on the inner face, for the roof beams of
+    // the chambers that ran against the wall (Ch.5)
+    for (let i=0;i<3;i++){
+      const x = -pitch + i*pitch;
+      const geo = new THREE.BoxGeometry(0.4, 0.4, 0.9);
+      const m = new THREE.Mesh(geo, stoneMaterial(st)); m.castShadow = m.receiveShadow = true;
+      m.position.set(-6 + x, topYOf(-6,-19.4,8.4), -18.7); m.rotation.y = -0.025;
+      groups[st].add(m);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), st==='peak'?edgePeak:edgeRuin);
+      ed.position.copy(m.position); ed.rotation.y = -0.025; groups[st].add(ed);
+    }
+  });
 
   // ROOFS — pitched, timber-framed, domestic ranges only
   gableRoof(9.5, 0.5, 46, 14, 17, 4.5, 0);       // central range
@@ -547,8 +840,9 @@ function placeBuildings(){
   // CRENELLATIONS — flat fighting platforms on every defensive element
   crenellateRect(40, 0, 15, 20, topYOf(40,0,24), {east:true}, 0, {mD:1.3});   // keep (apse left smooth)
   crenellateRect(-46, -17, 7, 7, topYOf(-46,-17,17), {}, 0.12, {mW:0.9, gap:0.8, mD:0.9});  // gate tower
-  crenellateRing(-20, 20, 4.2, topYOf(-20,20,10), 14);                        // corner tower
+  crenellateRing(-20, 20, 4.2, topYOf(-20,20,4.5), 14);                      // round tower, above the talus
   crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
+  crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
 
   // labels (world anchors)
   labelDefs = [
@@ -570,7 +864,7 @@ function placeMill(){
   const mk = (state, x, z, sx, sz, h, jag) => {
     const geo = new THREE.BoxGeometry(sx, h+FOUND, sz);
     if (jag){ geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, x+z); geo.translate(0,-(h+FOUND)/2,0); }
-    addToGroup(millGroups[state], geo, state==='peak'?matPeak:matRuin, state==='peak'?edgePeak:edgeRuin, x, base+(h-FOUND)/2, z);
+    addToGroup(millGroups[state], geo, stoneMaterial(state, Math.max(sx,sz), h), state==='peak'?edgePeak:edgeRuin, x, base+(h-FOUND)/2, z);
   };
   mk('peak', 0, 0, 20, 9, 9);          // two-storey mill + hall
   mk('peak', -13, -0.5, 7, 7, 13);     // west appendage, originally three storeys
