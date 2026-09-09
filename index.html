@@ -573,7 +573,7 @@ function chaikin(pts, iterations){
    standing remains. Ruin heights vary continuously along the path instead of
    stepping between segments. */
 function wallRibbon(state, pts, h, thick, ruinPattern, sink){
-  sink = sink==null ? 8 : sink;
+  sink = sink==null ? 3 : sink;
   const N = pts.length, half = thick/2;
   const hs = [], nor = [];
   for (let i=0;i<N;i++){
@@ -591,13 +591,14 @@ function wallRibbon(state, pts, h, thick, ruinPattern, sink){
     nor.push([-dy, dx]);
   }
   const pos = [], idx = [];
+  const gAt = (uu,vv)=>{ const p=fromFrame(uu,vv); return groundAt(p.e,p.n); };
   for (let i=0;i<N;i++){
     const [u,v] = pts[i], [nx,nv] = nor[i];
     const uo=u+nx*half, vo=v+nv*half, ui=u-nx*half, vi=v-nv*half;
-    const gO = groundAt(...(()=>{const p=fromFrame(uo,vo);return [p.e,p.n];})());
-    const gI = groundAt(...(()=>{const p=fromFrame(ui,vi);return [p.e,p.n];})());
-    const g = Math.min(gO,gI) + CFG.offsetUp;
-    const yb = g - sink, yt = g + hs[i];
+    const gC = gAt(u,v) + CFG.offsetUp;                 // wall-head follows the centreline
+    const gLow = Math.min(gAt(uo,vo), gAt(ui,vi)) + CFG.offsetUp;
+    const yt = gC + hs[i];
+    const yb = Math.min(gLow, gC) - sink;               // foot buried just below the lower side
     pos.push(uo,yb,vo,  uo,yt,vo,  ui,yt,vi,  ui,yb,vi);
   }
   for (let i=0;i<N-1;i++){
@@ -964,7 +965,7 @@ function placeBuildings(){
   // Core set back, then real pierced faces on the three walls we have evidence for.
   // No solid core: the range is built from its four wall faces, so every opening
   // looks into the (dark) interior rather than onto a solid block behind.
-  box('peak', 32.6, 0.5, 2.4, 14.0, 17);          // east end wall, onto the vestibule
+  box('peak', 32.6, 0.4, 2.4, 15.6, 17);          // east end wall, onto the vestibule (spans both long walls)
   // South wall: "large windows in some, perhaps all of the bays" between the
   // pilasters (Ch.8) — six bays on this side, plus the upper apartment storey.
   (function(){
@@ -999,7 +1000,7 @@ function placeBuildings(){
   ], 0);
   // West wall of the enclosure: two windows and a door (later blocked) with the
   // in-situ triangular bases of two arrow slits above them (Plates 8.4, 8.5).
-  wallPanel('peak', -13.2, 0.5, 12.4, 2.2, 17, [
+  wallPanel('peak', -13.2, 0.4, 15.6, 2.2, 17, [
     { x:0,    y:0,   w:1.6, h:2.8, kind:'arch' },
     { x:-3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
     { x:3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
@@ -1013,7 +1014,7 @@ function placeBuildings(){
 
   // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
   // built as faces, not a solid mass — see the central range above
-  box('peak', -13.9, -0.5, 2.2, 15.4, 32);        // east end wall, against chamber L
+  box('peak', -13.9, -0.3, 2.2, 16.8, 32);        // east end wall, against chamber L (spans both long walls)
   /* The basement is "two huge parallel barrel vaults" (Ch.8) — chambers K and L,
      which the plan shows running ACROSS the castle, so their arched ends open on
      the north face. That pair of arches is the most recognisable thing about the
@@ -1042,7 +1043,7 @@ function placeBuildings(){
     { x:6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true }
   ], 0);
   // west end wall, peak — the wing's gable end also had to be lit
-  wallPanel('peak', -36.2, -0.5, 14.0, 2.2, 32, [
+  wallPanel('peak', -36.2, -0.3, 16.8, 2.2, 32, [
     { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'arch', glass:true },
     { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
     { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'arch', glass:true },
@@ -1068,20 +1069,27 @@ function placeBuildings(){
   // carries the passage arch, an arrow embrasure on the middle floor directly
   // above it, and a machicolation on the floor above. Opening sizes scaled off
   // the measured south-face drawing, Plate 9.39.
-  box('peak', -46, -15.9, 7, 3.4, 17, 0, 0.12);   // core set back behind the pierced face
-  wallPanel('peak', -46, -19.9, 7, 1.9, 17, [
+  /* WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). Built from its
+     actual walls, not a block: the north face carries the passage arch, an arrow
+     embrasure on the middle floor directly above it and a machicolation above
+     that, while the side and south walls close the tower without blocking the
+     passage. Opening sizes are scaled off the measured south-face drawing,
+     Plate 9.39, which carries a 4 m scale bar. */
+  const gateOpenings = [
     { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
     { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
     { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
-  ], 0.12);
-  machicolation('peak', -46, -19.9, 5.4, topYOf(-46,-17,15.4), 0.12, -1);
+  ];
+  box('peak', -48.75, -17.4, 1.5, 6.95, 17, 0, 0.12);   // west side wall
+  box('peak', -43.25, -17.4, 1.5, 6.95, 17, 0, 0.12);   // east side wall
+  box('peak', -46, -14.6, 7, 1.4, 17, 0, 0.12);         // south (inner) wall
+  wallPanel('peak', -46, -19.9, 7, 1.9, 17, gateOpenings, 0.12);
+  machicolation('peak', -46, -19.9, 5.4, topYOf(-46,-17.4,15.4), 0.12, -1);
   // the ruin keeps the tower nearly to full height — it is the best-preserved gate
-  box('ruin', -46, -15.9, 7, 3.4, 15.5, 0.35, 0.12);
-  wallPanel('ruin', -46, -19.9, 7, 1.9, 15.0, [
-    { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
-    { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
-    { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
-  ], 0.12);
+  box('ruin', -48.75, -17.4, 1.5, 6.95, 15.5, 0.3, 0.12);
+  box('ruin', -43.25, -17.4, 1.5, 6.95, 15.5, 0.3, 0.12);
+  box('ruin', -46, -14.6, 7, 1.4, 14.0, 0.4, 0.12);
+  wallPanel('ruin', -46, -19.9, 7, 1.9, 15.0, gateOpenings, 0.12);
 
   // ROUND TOWER on the southern outer enceinte — a broad drum with a strongly
   // flared talus, built of very large rough blocks; it reads far wider than tall
@@ -1091,7 +1099,7 @@ function placeBuildings(){
 
   // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
   // subdivided until it reads as a true curve following the spur, not a faceted line
-  const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-19.5],[-36,-19],[-48,-13],[-55,-3],[-53,8],[-44,17],[-28,20.5],[-8,19],[12,16],[30,13]];
+  const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-20],[-34,-22],[-50,-23],[-60,-13],[-60,2],[-50,15],[-38,20],[-20,21],[-2,19],[16,16],[30,13]];
   const outer = resample(chaikin(outerRaw, 4), 1.6);
   wallRibbon('peak', outer, 5.5, 1.6, false);
   wallRibbon('ruin', outer, 5.5, 1.6, true);
@@ -1132,7 +1140,7 @@ function placeBuildings(){
 
   // CRENELLATIONS — flat fighting platforms on every defensive element
   crenellateRect(40, 0, 15, 20, topYOf(40,0,24), {east:true}, 0, {mD:1.3});   // keep (apse left smooth)
-  crenellateRect(-46, -17, 7, 7, topYOf(-46,-17,17), {}, 0.12, {mW:0.9, gap:0.8, mD:0.9});  // gate tower
+  crenellateRect(-46, -17.4, 7, 6.95, topYOf(-46,-17.4,17), {}, 0.12, {mW:0.9, gap:0.8, mD:0.9});  // gate tower
   crenellateRing(-20, 20, 4.2, topYOf(-20,20,4.5), 14);                      // round tower, above the talus
   crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
   crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
@@ -1151,7 +1159,7 @@ function placeBuildings(){
   // interior without the shell poking into the reveal
   interiorShell('peak', 9.65, 0.6, 43.3, 10.4, 16.6, 0);     // central range
   interiorShell('peak', -25.05, -0.2, 19.9, 11.8, 31.2, 0);  // western wing
-  interiorShell('peak', -46, -16.6, 5.4, 4.6, 16.4, 0.12);   // gate tower
+  interiorShell('peak', -46, -16.45, 3.9, 4.8, 16.4, 0.12);  // gate tower
   interiorShell('ruin', -25, 0.8, 21.5, 10.0, 6.8, 0);       // surviving vaults
 
   rebuildLabels();
