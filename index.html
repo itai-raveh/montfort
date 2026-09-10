@@ -1379,83 +1379,81 @@ function placeBuildings(){
   roundTower('peak', -45.5, -20.6, 7.0, 9.6, 6.0, 5.0);
   roundTower('ruin', -45.5, -20.6, 7.0, 9.6, 5.4, 2.6);
 
-  /* TWO SEPARATE LINES OF DEFENCE — the single ring hugging the buildings was
-     simply wrong. Ch.1 states it plainly: "there was an outer line of
-     fortifications lower on the north and west slope. This outer enceinte
-     extended from the tower-keep, some 50 metres down the north slope, then
-     west and eventually turned south. There is at present no evidence of it
-     continuing on the southern side of the castle. This wall had two
-     semi-circular towers, numerous arrow embrasures and at least four gates.
-     Within it are the remains of various structures forming an outer ward."
-     Ch.8 repeats it: the lower wall "extends from the keep, north down the
-     slope, then west and finally south below the curved wall of the inner
-     defences". So: an INNER line immediately below the buildings carrying the
-     gate tower, and an OUTER line far down the slope enclosing a large ward,
-     open on the south. */
+  /* OUTER BAILEY (Vorburg) — rebuilt from Biller's site plan, whose outer-works
+     portion is explicitly captioned as following "der vermessenen Darstellung
+     von Frenkel/Gatzov 1986" (the surveyed depiction of Frenkel & Gatzov, 1986),
+     cross-checked against Biller's own reconstruction model of the site. Both
+     agree: a compact, straight-sided polygonal ward directly below and west of
+     the gate tower, descending the slope there, with ONE round tower at its
+     exposed downhill corner — not a wall running far down the north slope in a
+     separate ring, which earlier versions of this model wrongly built from a
+     misreading of Ch.1/Ch.8 against an ambiguous plan crop. This is a shape and
+     position correction; exact metre dimensions are not recoverable from a
+     photograph of the source plan at the resolution available, so the polygon
+     below is sized plausibly against the gate tower rather than measured. */
+  const baileyRaw = [[-49,-18],[-68,-22],[-85,-15],[-92,0],[-85,15],[-67,20],[-51,15],[-46,-9]];
+  const bailey = resample(chaikin(baileyRaw, 3), 2.0);
+  wallRibbon('peak', bailey, 4.4, 1.4, false);
+  wallRibbon('ruin', bailey, 4.4, 1.4, true);
+  crenellatePolyline(bailey, (u,v)=>topYOf(u,v,4.4), {mD:1.2});
 
-  // INNER DEFENCES — curtain on the north, curving south at the western end (Ch.1)
-  const innerRaw = [[-14,-15],[-30,-17],[-44,-18],[-56,-15],[-63,-7],[-65,3],[-61,13],[-52,20]];
-  const inner = resample(chaikin(innerRaw, 3), 2.0);
-  wallRibbon('peak', inner, 5.0, 1.5, false);
-  wallRibbon('ruin', inner, 5.0, 1.5, true);
+  // the round tower at its downhill corner — the one feature both sources agree on
+  roundTower('peak', -89, -1, 5.4, 7.6, 4.6, 4.4);
+  roundTower('ruin', -89, -1, 5.4, 7.6, 4.0, 1.8);
+  crenellateRing(-89, -1, 5.4, topYOf(-89,-1,4.6), 16);
 
-  // OUTER ENCEINTE — from the keep, ~50 m down the north slope, west, then south.
-  // Deliberately NOT closed on the south: no evidence survives for it there.
-  const outerRaw = [[54,-6],[52,-26],[44,-43],[26,-52],[4,-57],[-20,-59],[-42,-57],
-                    [-60,-50],[-74,-37],[-81,-21],[-82,-4],[-78,10],[-70,21]];
-  const outer = resample(chaikin(outerRaw, 2), 2.5);
-  wallRibbon('peak', outer, 5.5, 1.7, false);
-  wallRibbon('ruin', outer, 5.5, 1.7, true);
+  // main gate into the bailey, near the gate tower
+  [['peak',4.4],['ruin',3.2]].forEach(([st,hh])=>{
+    wallPanel(st, -50, -19, 5.0, 1.6, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], -0.9);
+  });
 
-  // the two semi-circular towers the text records on this outer wall
-  roundTower('peak', 4, -57, 4.4, 6.2, 3.6, 4.2);
-  roundTower('ruin', 4, -57, 4.4, 6.2, 3.2, 1.4);
-  roundTower('peak', -74, -37, 4.4, 6.2, 3.6, 4.2);
-  roundTower('ruin', -74, -37, 4.4, 6.2, 3.2, 1.2);
-
-  /* The best-preserved stretch of the outer wall: 20.5 m long, 1.3 m thick and
-     9 m high — its original height — pierced by four openings 0.85–0.95 m wide
-     inside and 0.40 m outside, 1.1–1.3 m high, 1.92–2.55 m apart, their sills 7 m
-     above the exterior base (Ch.5). Three corbels above them carried the roof
-     beams of chambers built against the wall. This stretch still stands, so it
-     is modelled in BOTH states. The splay is real: a wide inner panel and a
-     narrow-slotted outer skin. */
+  /* The best-preserved stretch of curtain wall: 20.5 m long, 1.3 m thick, 9 m
+     high — its original height — pierced by four openings 0.85–0.95 m wide
+     inside and 0.40 m outside (a real splay), 1.1–1.3 m high, 1.92–2.55 m apart,
+     sills 7 m above the exterior base (Ch.5), with three roof-beam corbels above.
+     Set on the bailey's west face, the side most exposed and most likely to
+     preserve a long uninterrupted run. Modelled in both states, since it still
+     stands. */
   [['peak',9.0],['ruin',9.0]].forEach(([st,hh])=>{
     const innerSlots = [], outerSlots = [];
-    const pitch = 3.15;                       // 0.9 m opening + 2.25 m pier
+    const pitch = 3.15;
     for (let i=0;i<4;i++){
       const x = -1.5*pitch + i*pitch;
-      innerSlots.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' }); // 0.85–0.95 m inside
-      outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' }); // 0.40 m outside
+      innerSlots.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' });
+      outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' });
     }
-    wallPanel(st, -6, -57.6, 20.5, 0.9, hh, innerSlots, -0.06);
-    wallPanel(st, -6, -58.3, 20.5, 0.45, hh, outerSlots, -0.06);
-    // three corbels above the openings on the inner face, for the roof beams of
-    // the chambers that ran against the wall (Ch.5)
+    wallPanel(st, -92, 0, 20.5, 0.9, hh, innerSlots, Math.PI/2 - 0.25);
+    wallPanel(st, -92.7, 0, 20.5, 0.45, hh, outerSlots, Math.PI/2 - 0.25);
     for (let i=0;i<3;i++){
       const x = -pitch + i*pitch;
       const geo = new THREE.BoxGeometry(0.4, 0.4, 0.9);
+      const c=Math.cos(Math.PI/2-0.25), s=Math.sin(Math.PI/2-0.25);
       const m = new THREE.Mesh(geo, stoneMaterial(st)); m.castShadow = m.receiveShadow = true;
-      m.position.set(-6 + x, topYOf(-6,-57.6,8.4), -56.9); m.rotation.y = -0.06;
+      m.position.set(-92 + x*c, topYOf(-92,0,8.4), -(x*s)); m.rotation.y = Math.PI/2-0.25;
       groups[st].add(m);
       const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), st==='peak'?edgePeak:edgeRuin);
-      ed.position.copy(m.position); ed.rotation.y = -0.06; groups[st].add(ed);
+      ed.position.copy(m.position); ed.rotation.y = Math.PI/2-0.25; groups[st].add(ed);
     }
   });
 
-  /* GATES. The outer enceinte carried "at least four gates" (Ch.1); the gate
-     tower gave access through the INNER wall "from below". A postern survives at
-     the north-west with pale limestone voussoirs over grey lintels (Ch.13). */
-  [['peak',5.5],['ruin',4.0]].forEach(([st,hh])=>{
-    wallPanel(st,  26, -52, 6.0, 1.9, hh, [{ x:0, y:0, w:2.2, h:3.0, kind:'arch' }], -0.42);  // north-east gate
-    wallPanel(st, -20, -59, 6.0, 1.9, hh, [{ x:0, y:0, w:2.2, h:3.0, kind:'arch' }], -0.04);  // northern gate
-    wallPanel(st, -60, -50, 5.5, 1.9, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], 0.62);   // north-west gate
-    wallPanel(st, -82, -4,  5.5, 1.9, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], 1.48);   // western gate, where it turns south
-    wallPanel(st, -60, -50, 4.5, 1.9, hh, [{ x:0, y:3.0, w:1.2, h:2.0, kind:'arch' }], 0.62); // north-west postern
-    wallPanel(st, -30, -17, 5.0, 1.7, hh, [{ x:0, y:0, w:1.8, h:2.6, kind:'arch' }], -0.12);  // gate C, inner line
+  /* Stables recorded in the outer ward (MCP seasons 5–6): a double-arch system
+     on a row of stone piers under a flat, wooden-beamed roof, limestone flag
+     floor, direct parallel to the stables in the faubourg at 'Atlit. A lean-to
+     against the bailey's inner wall face, peak state only — nothing of the
+     timber roof would survive into the ruin. */
+  for (let i=0;i<3;i++){
+    const u = -63 + i*8;
+    box('peak', u, -13.5, 5.5, 5.5, 3.6);
+    cylinder('peak', u+2.7, -13.5, 0.35, 3.4, 8);
+  }
+
+  /* A short gate directly below the keep, on the castle's own south side —
+     distinct from the bailey, and much shorter than the wall this model
+     previously ran the full width of the site: neither source shows a long
+     southern wall, matching Ch.1's statement that none survives there. */
+  [['peak',3.2],['ruin',2.0]].forEach(([st,hh])=>{
+    wallPanel(st, 24, 11, 5.5, 1.5, hh, [{ x:0, y:0, w:1.6, h:2.4, kind:'arch' }], 0.15);
   });
-  machicolation('peak', -20, -59, 4.2, topYOf(-20,-59,5.5), -0.04, -1);
-  machicolation('peak', -30, -17, 4.0, topYOf(-30,-17,5.0), -0.12, -1);
 
   // ROOFS — pitched, timber-framed, domestic ranges only
   gableRoof(9.75, 0.4, 48.1, 15.4, 17, 5.4, 0, 0.9, 1.5, rangeBase + 17);   // central range
@@ -1466,14 +1464,12 @@ function placeBuildings(){
   parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
   crenellateRing(-45.5, -20.6, 7.0, topYOf(-45.5,-20.6,6.0), 20);             // round tower, above the talus
   // crenellations only on the peak-state wall; the ruin has lost its parapet
-  crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.4});                // outer enceinte
-  crenellatePolyline(inner, (u,v)=>topYOf(u,v,5.0), {mD:1.3});                // inner defences
-  crenellateEdge(-16.2,-57.6, 4.2,-57.6, topYOf(-6,-57.6,9.0), {mD:1.2});     // the preserved 9 m stretch
+  // (bailey crenellation already applied above, alongside its wall)
 
   // labels (world anchors)
   labelDefs = [
     ['Keep', 45, 0, 26], ['Central range', 9.5, 0.5, 19], ['Western wing · Great Hall', -25, -0.5, 34],
-    ['Gate tower', -46, -17, 19], ['Outer wall', -20, -59, 8], ['Inner defences', -44, -18, 7], ['Outer ward', -20, -36, 4], ['Rock-cut moats', 78, 0, 6]
+    ['Gate tower', -46, -17, 19], ['Outer bailey', -70, 0, 7], ['Round tower', -89, -1, 10], ['Rock-cut moats', 78, 0, 6]
   ].map(([t,u,v,dy])=>{ const {e,n}=fromFrame(u,v); return { text:t, pos:new THREE.Vector3(e, groundAt(e,n)+CFG.offsetUp+dy, -n) }; });
 
   /* Detached fragments standing clear of the main lines, as in the aerial views:
