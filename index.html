@@ -747,6 +747,92 @@ function pinTo(u, v, su, sv, rot){
   return PIN;
 }
 function unpin(){ PIN = null; }
+const CORE_PLAN = [
+  {r:[[31.36,-0.3],[30.28,-0.06],[30.16,0.9],[28.59,2.83],[28.71,4.63],[30.52,4.99],[31.6,4.63]]},
+  {r:[[-24.48,-3.43],[-25.08,-3.07],[-25.44,-1.14],[-27.85,-0.54],[-27.85,0.66],[-27.24,1.02],[-24.6,0.9],[-24,2.23],[-23.15,2.59],[-22.19,2.11],[-22.19,0.54],[-23.39,-0.3],[-23.63,-2.83]]},
+  {r:[[14.51,-7.16],[14.63,-4.63],[15.23,-4.27],[16.2,-4.39],[16.8,-5.72],[17.88,-5.84],[21.97,-4.99],[22.94,-3.07],[24.02,-2.35],[28.59,-1.87],[31.48,-2.71],[31.6,-6.8],[30.64,-7.88],[25.1,-7.4],[20.65,-8.24],[19.93,-9.45],[16.8,-9.93]],h:[[[27.39,-4.51],[29.19,-4.87],[29.68,-3.79],[28.11,-3.31],[27.39,-3.79]]]},
+  {r:[[0.55,-10.05],[1.16,-9.21],[7.41,-8.6],[7.65,-5.48],[8.38,-4.63],[9.1,-5.11],[8.98,-8.36],[9.46,-8.72],[11.14,-8.24],[11.74,-8.6],[11.38,-9.57],[9.46,-10.05],[7.89,-11.25],[5.13,-10.17],[4.4,-11.01],[1.88,-11.37]]},
+  {r:[[-48.3,-14.5],[-47.58,-13.42],[-47.46,-11.61],[-46.74,-11.01],[-45.78,-1.26],[-43.49,-0.54],[-40,-1.26],[-37.71,-0.9],[-37.35,5.48],[-38.19,5.96],[-40.72,6.08],[-43.37,4.15],[-44.81,4.75],[-44.69,6.8],[-43.01,10.05],[-42.17,10.65],[-36.99,10.41],[-36.15,9.45],[-35.43,9.45],[-34.83,13.54],[-34.22,13.9],[-15.93,13.54],[-15.33,13.18],[-15.21,10.53],[-14.73,10.17],[4.16,11.37],[20.05,11.73],[21.01,12.45],[19.93,13.3],[19.93,18.59],[21.01,19.31],[21.01,19.92],[32.8,19.92],[33.65,19.19],[37.62,19.43],[38.1,19.92],[40.02,19.07],[39.9,15.1],[38.82,14.38],[38.7,12.7],[39.18,11.97],[40.26,12.33],[42.91,12.09],[43.75,10.89],[45.08,10.53],[46.52,11.73],[53.14,10.89],[55.31,10.17],[58.8,7.4],[60,7.76],[61.08,6.8],[60.36,4.63],[61.32,2.11],[61.32,-2.11],[60.36,-4.75],[58.56,-7.28],[56.75,-8.84],[54.83,-9.69],[54.22,-10.89],[52.9,-11.13],[51.94,-12.45],[51.1,-12.33],[50.37,-11.37],[49.05,-11.37],[47.97,-12.33],[42.07,-11.73],[40.87,-10.53],[38.1,-10.05],[37.86,-8.6],[35.33,-7.52],[34.73,-6.68],[34.97,-4.39],[36.41,-3.43],[37.02,1.26],[36.65,2.47],[34.13,3.19],[34.13,4.75],[34.97,5.96],[35.09,7.04],[35.69,7.4],[36.9,6.2],[43.03,5.35],[42.31,-0.9],[40.02,-1.38],[40.26,-1.87],[41.35,-1.74],[41.95,-2.35],[41.59,-4.75],[42.79,-5.35],[51.22,-6.08],[54.22,-4.99],[56.27,-2.83],[56.87,-1.38],[56.87,1.5],[55.91,3.91],[52.54,6.44],[51.46,5.72],[51.22,4.15],[48.45,4.39],[48.09,5.35],[50.25,5.72],[50.49,6.44],[49.77,6.92],[38.22,7.88],[36.9,8.84],[35.21,8.97],[35.09,11.37],[37.38,12.09],[37.74,17.87],[37.26,18.23],[22.45,18.11],[21.97,17.75],[21.97,12.21],[22.82,11.73],[27.87,12.21],[29.19,11.73],[32.44,11.73],[32.56,9.81],[31.72,8.84],[31.6,6.92],[30.88,6.44],[30.16,6.92],[30.28,8.48],[29.68,9.09],[24.86,9.09],[23.54,8],[22.82,8.12],[22.09,8.97],[17.88,8.97],[17.04,7.4],[15.96,6.92],[15.35,7.28],[15.35,8.36],[14.87,8.72],[14.15,7.76],[12.47,7.88],[12.11,5.84],[15.11,5.35],[15.11,4.15],[16.44,3.67],[17.16,2.59],[21.85,3.07],[22.58,4.27],[23.3,4.27],[25.1,2.47],[25.58,1.02],[25.34,0.3],[23.42,0.3],[22.33,1.14],[17.28,0.66],[16.2,-0.78],[15.23,-0.66],[14.51,0.3],[13.07,0.3],[12.95,1.87],[14.63,2.47],[15.11,3.91],[14.63,4.27],[11.02,4.27],[10.66,4.87],[11.02,8.24],[10.18,8.6],[9.22,7.52],[9.1,2.35],[11.14,1.99],[11.38,0.42],[9.22,-0.3],[8.98,-2.83],[8.26,-3.19],[7.65,-2.83],[7.89,7.4],[7.41,8.48],[3.68,8.48],[2,7.52],[0.67,8.24],[-4.38,8],[-5.46,7.04],[-6.91,7.76],[-10.88,7.64],[-13.16,5.84],[-13.77,2.11],[-13.41,1.14],[-12.2,0.78],[-11.96,-0.3],[-12.8,-1.02],[-13.77,-0.54],[-14.49,-1.02],[-15.09,-5.35],[-16.41,-6.44],[-15.57,-7.04],[-15.81,-9.09],[-15.33,-9.45],[-7.03,-9.33],[-6.43,-9.69],[-6.79,-11.01],[-10.76,-11.73],[-15.93,-11.49],[-16.41,-11.85],[-16.9,-14.26],[-24.6,-13.9],[-26.52,-15.34],[-27.36,-14.14],[-28.21,-13.78],[-36.03,-12.94],[-37.23,-12.21],[-38.44,-13.42],[-39.28,-12.94],[-39.4,-11.73],[-38.19,-11.37],[-37.23,-11.85],[-36.39,-11.25],[-36.03,-8],[-35.43,-7.64],[-34.71,-8],[-34.71,-8.84],[-34.22,-9.21],[-26.52,-9.69],[-25.92,-8.97],[-25.56,-5.72],[-24.72,-5.23],[-24.12,-5.6],[-24.48,-9.33],[-23.03,-10.05],[-23.51,-12.21],[-23.03,-12.58],[-20.75,-12.45],[-19.18,-5.48],[-16.65,-4.75],[-16.9,-3.43],[-18.7,-2.83],[-17.5,7.52],[-17.98,7.88],[-20.99,7.64],[-21.71,4.87],[-22.67,4.51],[-23.39,4.99],[-23.27,9.21],[-31.94,9.57],[-33.02,9.09],[-33.74,1.5],[-30.49,1.02],[-30.37,-0.42],[-33.86,-1.02],[-34.34,-5.35],[-34.95,-5.72],[-36.51,-4.87],[-44.45,-4.51],[-44.93,-5.6],[-45.42,-10.53],[-44.69,-11.01],[-42.05,-11.01],[-41.44,-11.85],[-42.65,-13.06],[-44.93,-11.85],[-45.42,-12.21],[-45.9,-14.74]]},
+  {r:[[-61.06,-14.02],[-63.1,-11.61],[-63.83,-7.88],[-63.1,-4.39],[-61.42,-0.42],[-59.01,2.23],[-51.43,5.6],[-50.71,9.81],[-49.15,10.17],[-46.14,9.81],[-46.14,6.2],[-47.58,5.11],[-48.06,-4.27],[-50.35,-4.99],[-50.59,-7.52],[-51.55,-8],[-52.15,-7.64],[-51.55,0.42],[-52.03,0.78],[-57.09,-1.74],[-59.01,-4.03],[-59.74,-6.08],[-59.86,-8],[-59.25,-10.29],[-57.09,-12.21],[-55.28,-12.82],[-53.12,-12.82],[-52.52,-12.09],[-52.39,-9.81],[-51.19,-9.57],[-50.47,-11.37],[-50.59,-13.3],[-49.39,-14.14],[-49.51,-15.7],[-51.07,-16.06],[-55.52,-15.58]]},
+  {r:[[32.92,-19.31],[31.72,-19.68],[30.4,-18.71],[28.47,-18.35],[27.15,-18.95],[22.7,-18.59],[22.09,-18.23],[22.09,-17.51],[22.7,-17.15],[26.55,-17.39],[27.51,-16.79],[31,-17.27],[32.44,-17.87]]},
+  {r:[[-5.7,-20.52],[-6.31,-20.88],[-9.31,-20.76],[-9.92,-20.4],[-10.28,-18.83],[-13.65,-18.83],[-14.25,-17.99],[-13.16,-17.51],[-9.31,-17.51],[-8.71,-17.87],[-8.47,-19.55],[-6.06,-19.68]]}
+];
+
+/* ================================================================
+   RUIN BASE, TRACED DIRECTLY FROM BILLER'S PLAN (Plate 5.26)
+   ----------------------------------------------------------------
+   Not modelled by hand. The plan image was rotated onto the castle
+   axis (bearing 110, the calibrated value), scaled from its own
+   printed bar (100 m = 831 px, so 8.31 px/m), and the grey masonry
+   fill was thresholded and traced. Thin sketch lines (contours, rock
+   hatching) were removed with a morphological opening at 1.3 m — the
+   minimum real wall thickness — so what survives is masonry only.
+   The contours below are those traces, in frame metres, simplified
+   to 0.30 m. Every vertex therefore comes from the plan, not from a
+   typed estimate.
+
+   Because the plan's wall runs are pierced by doorways and are not
+   closed loops, the trace comes out as open masonry runs rather than
+   sealed rooms. That is what the ruin actually is.
+
+   Each slab follows the terrain: the top face is sampled per vertex
+   at ground + h, and a skirt drops to ground - FOUND so nothing
+   floats on the slope.
+   ================================================================ */
+function ruinSlab(ring, holes, h){
+  const toV2 = r => r.map(p => new THREE.Vector2(p[0], p[1]));
+  const shape = new THREE.Shape(toV2(ring));
+  (holes||[]).forEach(hr => shape.holes.push(new THREE.Path(toV2(hr))));
+  const top = new THREE.ShapeGeometry(shape);
+  const pos = top.attributes.position;
+  // ShapeGeometry lays out in XY; lift to XZ and sit each vertex on the ground
+  const verts = [];
+  for (let i=0;i<pos.count;i++){
+    const u = pos.getX(i), v = pos.getY(i);
+    const {e,n} = fromFrame(u,v);
+    verts.push([u, baseAt(e,n) + h, v]);
+  }
+  const g = new THREE.BufferGeometry();
+  const idx = top.index ? Array.from(top.index.array) : null;
+  const arr = [];
+  const pushTri = (a,b,c)=>{ [a,b,c].forEach(k=>arr.push(verts[k][0],verts[k][1],verts[k][2])); };
+  if (idx) for (let i=0;i<idx.length;i+=3) pushTri(idx[i],idx[i+2],idx[i+1]);
+  // skirt: drop every ring edge to well below grade
+  const skirt = r => {
+    for (let i=0;i<r.length;i++){
+      const a = r[i], b = r[(i+1)%r.length];
+      const fa = fromFrame(a[0],a[1]), fb = fromFrame(b[0],b[1]);
+      const ya = baseAt(fa.e,fa.n) + h, yb = baseAt(fb.e,fb.n) + h;
+      const la = baseAt(fa.e,fa.n) - FOUND, lb = baseAt(fb.e,fb.n) - FOUND;
+      arr.push(a[0],ya,a[1],  b[0],yb,b[1],  b[0],lb,b[1]);
+      arr.push(a[0],ya,a[1],  b[0],lb,b[1],  a[0],la,a[1]);
+    }
+  };
+  skirt(ring); (holes||[]).forEach(skirt);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(arr,3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, stoneMaterial('ruin'));
+  m.castShadow = m.receiveShadow = true;
+  groups.ruin.add(m);
+  return m;
+}
+
+function buildRuinBaseFromPlan(){
+  CORE_PLAN.forEach(p => {
+    // surviving height by where it sits: the west range's vaulted block and the
+    // keep mass stand well above the rest; everything else is footing-height.
+    const us = p.r.map(q=>q[0]), vs = p.r.map(q=>q[1]);
+    const cu = (Math.min(...us)+Math.max(...us))/2;
+    const cv = (Math.min(...vs)+Math.max(...vs))/2;
+    const span = Math.max(...us) - Math.min(...us);
+    let h = 2.0;
+    if (cu > 32 && cu < 60) h = 3.4;                 // keep mass
+    else if (cu > -46 && cu < -20 && span < 40) h = 5.0;  // west range / vault block
+    else if (span > 60) h = 2.4;                     // the long connected spine
+    ruinSlab(p.r, p.h, h);
+  });
+}
+
 function baseAt(e, n){ return (PIN !== null) ? PIN : groundAt(e,n) + CFG.offsetUp; }
 
 /* Dark inner shell, so a window shows an unlit interior rather than daylight
@@ -1197,6 +1283,14 @@ function placeBuildings(){
      western wing -36.5..-13.5 (23 x 16 m; >30 m tall; Ch.20),
      small western vault -47.5..-36.5. Outer enceinte lower on both flanks. */
 
+  /* The 1240 (peak) geometry below is the earlier hand-built model and is left
+     as it stands. The RUIN state is no longer taken from it: every ruin call in
+     this core section is suppressed, and the ruin base is built instead from the
+     traced plan contours (buildRuinBaseFromPlan, above). Outer works are not
+     affected — the suppression is lifted before that block. */
+  const _ruinAdd = groups.ruin.add.bind(groups.ruin);
+  groups.ruin.add = function(){ return groups.ruin; };
+
   // KEEP — rectangle + apsidal (D-shaped) east end
   const keepBase = pinTo(40, 0, 25, 20);
   box('peak', 40, 0, 15, 20, 24);
@@ -1380,6 +1474,9 @@ function placeBuildings(){
   box('ruin', gSouth[0], gSouth[1], gW, 1.4, 14.0, 0.4, gRot);
   wallPanel('ruin', gNorth[0], gNorth[1], gW, 1.9, 15.0, gateOpenings, gRot);
   unpin();
+
+  groups.ruin.add = _ruinAdd;          // core section over — outer works build normally again
+  buildRuinBaseFromPlan();             // ruin base, straight off Biller's plan
 
   // REVETMENT DRUM below the gate tower — the broad rough-block drum that every
   // photograph shows directly under gate tower E, revetting the rock it stands on.
