@@ -166,16 +166,19 @@ const CFG = {
      coarse outer square for the horizon. Covering 3.8 km of ground this way
      needs about 34 imagery tiles, where the old single fine square covered only
      1.2 km and needed 121 — so the view reaches much further AND loads faster. */
-  half: 420,                        // fine inner square, metres from centre
-  spacing: 3,                       // inner grid spacing, metres
+  coreHalf: 175,                    // finest square, right around the castle
+  coreSpacing: 1.5,
+  half: 480,                        // fine inner square, metres from centre
+  spacing: 4,                       // inner grid spacing, metres
   outerHalf: 1900,                  // coarse outer square, metres from centre
   outerSpacing: 26,                 // outer grid spacing, metres
   terrainZoom: 15,                  // Terrain Tiles zoom (elevation)
   imageryZoom: 17,                  // Esri imagery, inner
   imageryZoomOuter: 14,             // Esri imagery, horizon
-  axisBearing: 67,                  // degrees, from castle centre toward the keep
-  offsetE: 0, offsetN: 0, offsetUp: 0,
-  millE: -40, millN: 175,           // mill / guesthouse, local metres from reference
+  // calibrated against the satellite imagery on site
+  axisBearing: 110,                 // degrees, from castle centre toward the keep
+  offsetE: -8, offsetN: -10, offsetUp: -0.5,
+  millE: -36, millN: 175,           // mill / guesthouse, local metres from reference
   carveMoats: true
 };
 
@@ -470,18 +473,81 @@ function moatCut(e,n){
   return -cut*edge;
 }
 
+/* The elevation source resolves about 30 m, which renders this spur as a smooth
+   green swell. The real ridge is craggy limestone. microRelief adds small-scale
+   rock form below the DEM's resolution — it is modelled geometry, not texture. */
+function microRelief(e,n){
+  return noise(e*6.0, n*6.0, 11)*0.75      // ~20 m rock swells
+       + noise(e*14.0, n*14.0, 5)*0.30     // ~9 m broken ground
+       + noise(e*31.0, n*31.0, 23)*0.12;   // fine rubble
+}
 function groundAt(e,n){
-  if (liveTerrain){ const p = toLatLon(e,n); return elevAtLatLon(p.lat, p.lon) - elev0 + moatCut(e,n); }
-  return fallbackHeight(e,n) + moatCut(e,n);
+  if (liveTerrain){ const p = toLatLon(e,n); return elevAtLatLon(p.lat, p.lon) - elev0 + moatCut(e,n) + microRelief(e,n); }
+  return fallbackHeight(e,n) + moatCut(e,n) + microRelief(e,n);
 }
 
 /* ---------- terrain mesh ---------- */
+/* Rock outcrops as actual geometry. In the aerial views the spur is not a
+   smooth slope but broken limestone: crags along the ridge crest, boulder
+   fields on the flanks, bare rock where the soil has gone. Deterministic
+   placement, so the scene is identical on every load. */
+const rockMat = new THREE.MeshStandardMaterial({ color:0x9a927f, roughness:1, metalness:0, flatShading:true });
+const rockMatPale = new THREE.MeshStandardMaterial({ color:0xb3a993, roughness:1, metalness:0, flatShading:true });
+let rockGroup = null;
+function scatterRocks(){
+  if (rockGroup){ scene.remove(rockGroup); }
+  rockGroup = new THREE.Group();
+  let seed = 20260909;
+  const rnd = ()=>{ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; };
+  const placed = [];
+  for (let i=0;i<340;i++){
+    const ang = rnd()*Math.PI*2;
+    const rad = 40 + Math.pow(rnd(), 0.65)*430;
+    const e = Math.cos(ang)*rad, n = Math.sin(ang)*rad;
+    const {u,v} = toFrame(e + CFG.offsetE, n + CFG.offsetN);
+    // leave the castle platform and its immediate approaches clear
+    if (Math.abs(v) < 26 && u > -70 && u < 70) continue;
+    const y = groundAt(e,n) + CFG.offsetUp;
+    // favour steeper ground, where bare rock actually shows
+    const slope = Math.abs(groundAt(e+6,n)-groundAt(e-6,n)) + Math.abs(groundAt(e,n+6)-groundAt(e,n-6));
+    if (slope < 1.4 && rnd() > 0.30) continue;
+    const r = 0.8 + rnd()*3.4;
+    const geo = new THREE.IcosahedronGeometry(r, 0);
+    const m = new THREE.Mesh(geo, rnd() > 0.6 ? rockMatPale : rockMat);
+    m.position.set(e, y + r*0.35, -n);
+    m.scale.set(1 + rnd()*0.7, 0.45 + rnd()*0.6, 1 + rnd()*0.7);
+    m.rotation.set(rnd()*0.5, rnd()*Math.PI*2, rnd()*0.5);
+    m.castShadow = true; m.receiveShadow = true;
+    rockGroup.add(m);
+    placed.push(1);
+  }
+  // larger crags along the ridge crest, north and south of the castle
+  for (let i=0;i<26;i++){
+    const side = i%2 ? 1 : -1;
+    const u = -80 + (i/26)*230 + rnd()*14;
+    const v = side*(30 + rnd()*16);
+    const {e,n} = fromFrame(u,v);
+    const y = groundAt(e,n) + CFG.offsetUp;
+    const r = 2.6 + rnd()*4.2;
+    const geo = new THREE.DodecahedronGeometry(r, 0);
+    const m = new THREE.Mesh(geo, rockMat);
+    m.position.set(e, y + r*0.25, -n);
+    m.scale.set(1 + rnd()*0.9, 0.5 + rnd()*0.7, 1 + rnd()*0.9);
+    m.rotation.set(rnd()*0.4, rnd()*Math.PI*2, rnd()*0.4);
+    m.castShadow = true; m.receiveShadow = true;
+    rockGroup.add(m);
+  }
+  scene.add(rockGroup);
+}
+
 function buildTerrain(){
   terrainMeshes.forEach(m=>{ scene.remove(m); m.geometry.dispose(); });
   terrainMeshes = [];
   if (!terrainMatFlat) terrainMatFlat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0 });
-  buildTerrainRing(CFG.half, CFG.spacing, imgRaster, 0);          // fine, around the castle
-  buildTerrainRing(CFG.outerHalf, CFG.outerSpacing, imgRasterOuter, -0.8);  // coarse, to the horizon
+  buildTerrainRing(CFG.coreHalf, CFG.coreSpacing, imgRaster, 0);            // finest, at the castle
+  buildTerrainRing(CFG.half, CFG.spacing, imgRaster, -0.5);                 // fine, around it
+  buildTerrainRing(CFG.outerHalf, CFG.outerSpacing, imgRasterOuter, -1.4);  // coarse, to the horizon
+  scatterRocks();
 }
 
 /* One square of terrain. The coarse ring is dropped slightly so the fine ring
@@ -618,10 +684,14 @@ function wallRibbon(state, pts, h, thick, ruinPattern, sink){
     const t = i/(N-1);
     if (!ruinPattern) hs.push(h);
     else {
-      // smooth, continuous survival profile: a few stretches still stand to their
-      // original full height (Ch.4 n.9), the rest is reduced but never chopped
+      /* In the aerial views the ruined enceinte is not a continuous low wall:
+         it survives as separated stretches, some still near full height, with
+         real gaps of nothing between them. Burying a station below the ground
+         opens a true gap in the ribbon rather than just lowering it. */
       const w = 0.55 + 0.45*Math.sin(t*17.0)*Math.cos(t*6.3) + 0.18*Math.sin(t*3.1);
-      hs.push(h * Math.max(0.22, Math.min(1, 0.34 + 0.66*w)));
+      const survival = 0.34 + 0.66*w;
+      const gap = Math.sin(t*9.4 + 1.2)*Math.cos(t*23.0);
+      hs.push(gap < -0.42 ? -6 : h*Math.max(0.25, Math.min(1, survival)));
     }
     const a = pts[Math.max(0,i-1)], b = pts[Math.min(N-1,i+1)];
     let dx=b[0]-a[0], dy=b[1]-a[1];
@@ -1365,7 +1435,8 @@ function placeBuildings(){
   parapetRect('peak', 40, 0, 15, 20, keepBase + 24, 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
   parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
   crenellateRing(-41, -23.2, 5.4, topYOf(-41,-23.2,5.2), 16);                 // round tower, above the talus
-  crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
+  // crenellations only on the peak-state wall; the ruin has lost its parapet
+  if (true) crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});      // outer enceinte
   crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
 
   // labels (world anchors)
