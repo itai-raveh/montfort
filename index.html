@@ -547,7 +547,6 @@ function buildTerrain(){
   buildTerrainRing(CFG.coreHalf, CFG.coreSpacing, imgRaster, 0);            // finest, at the castle
   buildTerrainRing(CFG.half, CFG.spacing, imgRaster, -0.5);                 // fine, around it
   buildTerrainRing(CFG.outerHalf, CFG.outerSpacing, imgRasterOuter, -1.4);  // coarse, to the horizon
-  scatterRocks();
 }
 
 /* One square of terrain. The coarse ring is dropped slightly so the fine ring
@@ -1257,9 +1256,9 @@ function placeBuildings(){
     { x:-2.2, y:8.6, w:0.4, h:1.9, kind:'slit' },
     { x:2.2,  y:8.6, w:0.4, h:1.9, kind:'slit' }
   ], Math.PI/2);
-  box('ruin', 9.5, -5.7, 46, 2.4, 2.6, 0.7);     // north wall, "hardly surviving above bedrock" in places
-  box('ruin', 9.5, 6.3, 46, 2.0, 4.0, 0.7);      // south wall
-  box('ruin', -13, 0.5, 2.0, 12, 3.5, 0.6);      // west dividing wall W(A)2
+  box('ruin', 9.5, -5.7, 46, 2.4, 1.5, 0.9);     // north wall, "hardly surviving above bedrock" (Ch.4)
+  box('ruin', 9.5, 6.3, 46, 2.0, 2.3, 0.9);      // south wall, little more than a footing
+  box('ruin', -13, 0.5, 2.0, 12, 2.4, 0.8);      // west dividing wall W(A)2
   garderobe('peak', -10.5, 8.2, 1, 0, rangeBase + 9.5, 6.5);  // second chute, east of the first (Ch.9)
   for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
   unpin();
@@ -1309,17 +1308,21 @@ function placeBuildings(){
      the north wall survives to roughly Great Hall level, pierced by large
      arched openings, with a ragged crown. That upstanding wall is the single
      most recognisable thing about the ruin and was missing here. */
-  wallPanel('ruin', -25, -7.4, 23, 2.4, 15.0, vaultArch.concat([
-    { x:-6.6, y:9.2, w:3.2, h:4.6, kind:'gothic' },
-    { x: 0,   y:9.2, w:3.2, h:4.6, kind:'gothic' },
-    { x: 6.6, y:9.2, w:3.2, h:4.6, kind:'gothic' }
-  ]), 0);
-  // ragged crown on the surviving wall head
-  [-9.5,-5,-0.5,4,8.5].forEach((x,i)=>
-    box('ruin', -25+x, -7.4, 3.2, 2.4, 15.0 + [0.9,0.3,1.3,0.5,1.0][i], 0.8));
-  box('ruin', -25, 6.9, 23, 2.0, 10.5, 0.45);                    // south support wall stub
-  garderobe('peak', -25, 8.0, 1, 0, wingBase + 13.5, 9.0);   // latrine chute, south of the west range (Ch.9)
-  garderobe('ruin', -25, 8.0, 1, 0, wingBase + 6.0, 3.0);
+  /* In the photograph only the EASTERN half of the west range still stands
+     high — the tall block with its arched openings. The western half is reduced
+     to bare rock and low rubble, so a wall running the full 23 m is wrong. */
+  wallPanel('ruin', -19.2, -7.4, 11.6, 2.4, 15.0, [
+    { x:-2.9, y:0,   w:7.0, h:6.8, kind:'arch'   },
+    { x:-2.4, y:9.2, w:3.0, h:4.4, kind:'gothic' },
+    { x: 2.6, y:9.2, w:3.0, h:4.4, kind:'gothic' }
+  ], 0);
+  [-4.2,-0.6,3.4].forEach((x,i)=>
+    box('ruin', -19.2+x, -7.4, 3.0, 2.4, 15.0 + [0.9,1.4,0.5][i], 0.9));
+  // the western half: vault mouth only, then rubble
+  wallPanel('ruin', -30.8, -7.4, 11.4, 2.4, 7.4, [
+    { x:0.6, y:0, w:7.0, h:6.6, kind:'arch' }
+  ], 0);
+  box('ruin', -34.5, 0.5, 5.0, 13.0, 2.2, 0.9);
   cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
   unpin();
 
@@ -1339,7 +1342,7 @@ function placeBuildings(){
   /* WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). Every part is
      placed from ONE rotated local frame: spinning each box in place while
      leaving its centre on an unrotated grid skews the parapet off the walls. */
-  const gU = -46, gV = -17.4, gRot = 0.12, gW = 7, gD = 6.95;
+  const gU = -46, gV = -13.6, gRot = 0.12, gW = 7, gD = 6.95;   // BLUE: sits high on the rock, not down the slope
   const gC = Math.cos(gRot), gS = Math.sin(gRot);
   const gp = (x,z) => [gU + x*gC - z*gS, gV + x*gS + z*gC];   // local -> frame
   const gWest = gp(-(gW/2 - 0.75), 0), gEast = gp(gW/2 - 0.75, 0);
@@ -1370,13 +1373,19 @@ function placeBuildings(){
      semi-circular tower" on that side, and every photograph shows the broad
      rough-block drum sitting directly below the gate tower. It had been placed
      on the southern enceinte. */
-  roundTower('peak', -41, -23.2, 5.4, 7.8, 5.2, 6.2);
-  roundTower('ruin', -41, -23.2, 5.4, 7.8, 4.6, 2.2);
+  /* The broad rough-block drum sits immediately below the gate tower, revetting
+     the rock the tower stands on — not out along the enceinte where it was.
+     Widened, because in the photographs it reads far broader than it is tall. */
+  roundTower('peak', -45.5, -20.6, 7.0, 9.6, 6.0, 5.0);
+  roundTower('ruin', -45.5, -20.6, 7.0, 9.6, 5.4, 2.6);
 
   // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
   // subdivided until it reads as a true curve following the spur, not a faceted line
   const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-20],[-34,-22],[-50,-23],[-60,-13],[-60,2],[-50,15],[-38,20],[-20,21],[-2,19],[16,16],[30,13]];
-  const outer = resample(chaikin(outerRaw, 4), 1.6);
+  /* GREEN: away from the rounded west end the enceinte runs in straight lengths
+     with squared turns — over-smoothing turned the whole circuit into one soft
+     curve. Light smoothing keeps the corners legible. */
+  const outer = resample(chaikin(outerRaw, 2), 2.0);
   wallRibbon('peak', outer, 5.5, 1.6, false);
   wallRibbon('ruin', outer, 5.5, 1.6, true);
 
@@ -1434,7 +1443,7 @@ function placeBuildings(){
   // CRENELLATIONS — flat fighting platforms on every defensive element
   parapetRect('peak', 40, 0, 15, 20, keepBase + 24, 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
   parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
-  crenellateRing(-41, -23.2, 5.4, topYOf(-41,-23.2,5.2), 16);                 // round tower, above the talus
+  crenellateRing(-45.5, -20.6, 7.0, topYOf(-45.5,-20.6,6.0), 20);             // round tower, above the talus
   // crenellations only on the peak-state wall; the ruin has lost its parapet
   if (true) crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});      // outer enceinte
   crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
