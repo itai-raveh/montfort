@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Montfort · Qal'at Qurein — reconstruction</title>
+<script>
+window.addEventListener('error', function(e){
+  var s = document.getElementById('status');
+  if (s){ s.style.display = 'block'; s.style.opacity = '1';
+    s.innerHTML = 'Something failed to load.<small>' + (e.message || 'Unknown error') + '</small><small>Open the browser console (F12) for details, and send this to Claude.</small>'; }
+});
+setTimeout(function(){
+  if (typeof THREE === 'undefined'){
+    var s = document.getElementById('status');
+    if (s){ s.style.display='block'; s.style.opacity='1';
+      s.innerHTML = 'The 3D library failed to load from the CDN.<small>Check your connection, or an ad-blocker / extension may be blocking cdnjs.cloudflare.com.</small>'; }
+  }
+}, 6000);
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#141a1f;
+    font-family:"Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif;color:#eee6d6}
+  #view{position:fixed;inset:0;cursor:grab}
+  #view.drag{cursor:grabbing}
+  canvas{display:block}
+
+  /* title */
+  #title{position:fixed;top:20px;left:24px;z-index:6;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.55)}
+  #title h1{font-family:"Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif;font-weight:300;font-size:25px;letter-spacing:.02em}
+  #title p{font-size:12px;color:#cfc5ad;max-width:360px;line-height:1.45;margin-top:3px}
+
+  /* compass */
+  #compass{position:fixed;top:22px;right:22px;z-index:6;width:54px;height:54px;border-radius:50%;
+    border:1px solid rgba(238,230,214,.35);background:rgba(20,17,13,.35);pointer-events:none}
+  #compass svg{width:100%;height:100%}
+
+  /* labels */
+  #labels{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .tag{position:absolute;transform:translate(-50%,-100%);font-size:11.5px;font-weight:400;color:#fff;
+    letter-spacing:.03em;white-space:nowrap;text-shadow:0 1px 8px rgba(0,0,0,.85),0 0 2px rgba(0,0,0,.6)}
+  .tag::after{content:'';position:absolute;left:50%;bottom:-38px;transform:translateX(-50%);
+    width:1px;height:38px;background:linear-gradient(to bottom,rgba(255,255,255,.75),rgba(255,255,255,.15))}
+
+  /* bottom hud */
+  #hud{position:fixed;left:0;right:0;bottom:22px;z-index:6;display:flex;justify-content:center;pointer-events:none}
+  #switch{position:relative;display:flex;pointer-events:auto;background:rgba(20,17,13,.62);
+    border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px;backdrop-filter:blur(8px)}
+  #switch-thumb{position:absolute;top:4px;left:4px;height:calc(100% - 8px);width:calc(50% - 4px);
+    border-radius:999px;background:rgba(255,255,255,.92);transition:transform .28s cubic-bezier(.4,0,.2,1)}
+  #switch.right #switch-thumb{transform:translateX(100%)}
+  .opt{position:relative;z-index:1;min-width:116px;padding:8px 18px;border:0;background:none;cursor:pointer;
+    font:inherit;font-size:12.5px;letter-spacing:.03em;color:rgba(255,255,255,.75);
+    transition:color .28s;border-radius:999px}
+  .opt.on{color:#14110c;font-weight:500}
+
+  /* layer buttons */
+  #layers{position:fixed;right:22px;bottom:22px;z-index:7;display:flex;flex-direction:column;gap:6px}
+  .btn{font-size:11.5px;color:#eee6d6;background:rgba(20,17,13,.66);border:1px solid rgba(238,230,214,.2);
+    border-radius:6px;padding:7px 11px;cursor:pointer;backdrop-filter:blur(6px);text-align:left;min-width:120px}
+  .btn.on{border-color:#e9c66f;color:#f6e7bd}
+  .btn:focus-visible{outline:2px solid #e9c66f;outline-offset:2px}
+
+  /* calibration */
+  #calib{position:fixed;left:22px;bottom:22px;z-index:7;width:250px;display:none;background:rgba(20,17,13,.78);
+    border:1px solid rgba(238,230,214,.2);border-radius:8px;padding:12px 14px;backdrop-filter:blur(6px);font-size:11.5px}
+  #calib.show{display:block}
+  #calib.show ~ #conditions{display:none}
+  #calib h2{font-size:12px;font-weight:600;margin-bottom:8px;color:#f2ead9}
+  #calib label{display:flex;justify-content:space-between;align-items:center;margin:5px 0 2px;color:#cfc5ad}
+  #calib label output{color:#f2ead9;font-variant-numeric:tabular-nums}
+  #calib input[type=range]{width:100%;accent-color:#e9c66f}
+  #calib textarea{width:100%;height:56px;margin-top:8px;font:10.5px/1.4 ui-monospace,Menlo,Consolas,monospace;
+    background:rgba(0,0,0,.35);color:#eee6d6;border:1px solid rgba(238,230,214,.2);border-radius:4px;padding:5px;resize:none}
+  #calib p{color:#b9af98;margin-top:6px;line-height:1.4}
+
+  /* attribution + status */
+  #readout{position:fixed;left:22px;bottom:20px;z-index:6;max-width:30vw;pointer-events:none}
+  #conditions{font-size:11.5px;color:rgba(255,255,255,.9);letter-spacing:.02em;
+    text-shadow:0 1px 6px rgba(0,0,0,.85);line-height:1.5;margin-bottom:4px}
+  #attrib{font-size:10px;color:rgba(255,255,255,.55);line-height:1.5;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+  #attrib.hide{display:none}
+  #status{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;text-align:center;
+    background:rgba(20,17,13,.8);border:1px solid rgba(238,230,214,.2);border-radius:10px;padding:18px 26px;
+    font-size:13px;color:#eee6d6;max-width:420px;line-height:1.5;transition:opacity .5s}
+  #status small{display:block;color:#cfc5ad;font-size:11.5px;margin-top:6px}
+  #vert-badge{position:fixed;top:88px;left:50%;transform:translateX(-50%);z-index:7;opacity:0;
+    transition:opacity .2s;pointer-events:none;font-size:11.5px;letter-spacing:.03em;color:#14110c;
+    background:rgba(255,255,255,.92);padding:6px 14px;border-radius:999px}
+  #view.vert{cursor:ns-resize}
+  #view.vert.drag{cursor:grabbing}
+  #hint{position:fixed;bottom:146px;left:50%;transform:translateX(-50%);color:rgba(238,230,214,.6);font-size:11px;z-index:6;pointer-events:none;transition:opacity .6s;opacity:0}
+  @media (max-width:700px){
+    #title p{display:none} #layers{bottom:150px} #attrib{display:none} #calib{width:220px;bottom:150px}
+  }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="labels"></div>
+
+<div id="title">
+  <h1>Montfort · Qal'at Qurein</h1>
+  <p>Massing reconstruction on real terrain. Dimensions from the published surveys and excavations (Rey 1871 to Boas &amp; Khamisy 2016). Undocumented parts simplified.</p>
+</div>
+
+<div id="compass"><svg viewBox="0 0 54 54"><g id="needle"><polygon points="27,8 31,27 27,25 23,27" fill="#e9c66f"/><polygon points="27,46 31,27 27,29 23,27" fill="rgba(238,230,214,.35)"/></g><text x="27" y="15" text-anchor="middle" font-size="9" fill="#f2ead9" font-family="Helvetica Neue,Helvetica,Arial,sans-serif">N</text></svg></div>
+
+<div id="status">Loading terrain and imagery…<small id="progress"></small></div>
+<div id="vert-badge">up / down mode · drag to raise and lower · space to exit</div>
+<div id="hint">drag to orbit · scroll to zoom · space toggles up / down mode · reset view to recentre</div>
+
+<div id="hud">
+  <div id="switch" role="tablist" aria-label="Period">
+    <div id="switch-thumb"></div>
+    <button class="opt on" data-i="0" role="tab" aria-selected="true">c. 1240</button>
+    <button class="opt"    data-i="1" role="tab" aria-selected="false">Today</button>
+  </div>
+</div>
+</div>
+
+<div id="layers">
+  <button class="btn on" id="b-img">Satellite imagery</button>
+  <button class="btn on" id="b-lab">Labels</button>
+  <button class="btn" id="b-reset">Reset view</button>
+  <button class="btn" id="b-cal">Calibrate position</button>
+</div>
+
+<div id="calib">
+  <h2>Align the massing to the ruin</h2>
+  <label>Axis bearing (°) <output id="o-rot"></output></label>
+  <input type="range" id="c-rot" min="0" max="360" step="0.5">
+  <label>Shift east (m) <output id="o-e"></output></label>
+  <input type="range" id="c-e" min="-150" max="150" step="1">
+  <label>Shift north (m) <output id="o-n"></output></label>
+  <input type="range" id="c-n" min="-150" max="150" step="1">
+  <label>Raise / lower (m) <output id="o-up"></output></label>
+  <input type="range" id="c-up" min="-15" max="15" step="0.5">
+  <label>Mill east (m) <output id="o-me"></output></label>
+  <input type="range" id="c-me" min="-250" max="250" step="1">
+  <label>Mill north (m) <output id="o-mn"></output></label>
+  <input type="range" id="c-mn" min="-50" max="300" step="1">
+  <textarea id="c-out" readonly></textarea>
+  <p>Match the keep and the long range to the wall lines visible in the imagery, then paste these values into CFG at the top of the script.</p>
+</div>
+
+<div id="readout">
+<div id="conditions"></div>
+<div id="attrib">Imagery © Esri, Maxar, Earthstar Geographics and the GIS user community · Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL) · Weather: Open-Meteo (CC BY 4.0)</div>
+</div>
+
+<script>
+/* ============================================================
+   MONTFORT CASTLE — georeferenced massing reconstruction
+   Real terrain + satellite drape fetched at load time.
+   Castle dimensions: Boas & Khamisy (eds.), Montfort (Brill 2016)
+   chs. 4, 8, 9, 10, 13, 20; plan orientation from the frontispiece
+   north arrow (keep toward ENE, western wing toward WSW).
+   ============================================================ */
+
+const CFG = {
+  lat0: 33.04472, lon0: 35.22611,   // reference point (castle centre, Wikipedia figure)
+  /* Terrain is drawn as two rings: a fine inner square around the castle and a
+     coarse outer square for the horizon. Covering 3.8 km of ground this way
+     needs about 34 imagery tiles, where the old single fine square covered only
+     1.2 km and needed 121 — so the view reaches much further AND loads faster. */
+  coreHalf: 175,                    // finest square, right around the castle
+  coreSpacing: 1.5,
+  half: 480,                        // fine inner square, metres from centre
+  spacing: 4,                       // inner grid spacing, metres
+  outerHalf: 1900,                  // coarse outer square, metres from centre
+  outerSpacing: 26,                 // outer grid spacing, metres
+  terrainZoom: 15,                  // Terrain Tiles zoom (elevation)
+  imageryZoom: 17,                  // Esri imagery, inner
+  imageryZoomOuter: 14,             // Esri imagery, horizon
+  // calibrated against the satellite imagery on site
+  axisBearing: 110,                 // degrees, from castle centre toward the keep
+  offsetE: -8, offsetN: -10, offsetUp: -0.5,
+  millE: -36, millN: 175,           // mill / guesthouse, local metres from reference
+  carveMoats: true
+};
+
+const TERRAIN_URL = (z,x,y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+const IMAGERY_URL = (z,x,y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+
+/* ---------- geodesy helpers ---------- */
+const DEG = Math.PI/180;
+const M_LAT = 110574;
+const M_LON = 111320 * Math.cos(CFG.lat0*DEG);
+const lonToX = (lon,z) => (lon+180)/360 * Math.pow(2,z);
+const latToY = (lat,z) => { const r=lat*DEG; return (1 - Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2 * Math.pow(2,z); };
+const toLatLon = (e,n) => ({ lat: CFG.lat0 + n/M_LAT, lon: CFG.lon0 + e/M_LON });
+
+// castle frame: u along the axis toward the keep, v perpendicular toward the SSE (south side)
+function toFrame(e,n){
+  const b = CFG.axisBearing*DEG, de = e-CFG.offsetE, dn = n-CFG.offsetN;
+  return { u: de*Math.sin(b)+dn*Math.cos(b), v: de*Math.cos(b)-dn*Math.sin(b) };
+}
+function fromFrame(u,v){
+  const b = CFG.axisBearing*DEG;
+  return { e: CFG.offsetE + u*Math.sin(b) + v*Math.cos(b), n: CFG.offsetN + u*Math.cos(b) - v*Math.sin(b) };
+}
+
+/* ---------- scene ---------- */
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+const skyTop = new THREE.Color(0x5f8fb0), skyHor = new THREE.Color(0xeadcc2);
+scene.background = skyTop;
+scene.fog = new THREE.Fog(0xd9cbb0, 900, 4200);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 1, 14000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.appendChild(renderer.domElement);
+
+(function sky(){
+  const mat = new THREE.ShaderMaterial({
+    uniforms:{ top:{value:skyTop}, bottom:{value:skyHor} },
+    vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader:`varying vec3 vP; uniform vec3 top,bottom; void main(){ float t=smoothstep(-0.04,0.5,normalize(vP).y); gl_FragColor=vec4(mix(bottom,top,t),1.0); }`,
+    side:THREE.BackSide, depthWrite:false, fog:false });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(5200,24,16), mat));
+})();
+
+/* ---------- lighting: real sun position and real weather at Montfort ----------
+   The sun is placed from an actual solar-position calculation for 33.045°N,
+   35.226°E at the current moment, and the sky, haze and light levels follow the
+   live observation from Open-Meteo. After dark the castle is lit by lamps. */
+const sun = new THREE.DirectionalLight(0xfff1d6, 0.7);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:2200 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+const hemi = new THREE.HemisphereLight(0xcfe0ef, 0x6e6250, 0.6);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0xa8c0e0, 0.0);
+moon.position.set(-260, 620, 300);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024,1024);
+Object.assign(moon.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:2200 });
+moon.shadow.camera.updateProjectionMatrix();
+moon.shadow.bias = -0.0012;
+scene.add(moon);
+
+// Solar position (NOAA low-precision algorithm) — returns altitude and azimuth
+// in radians, azimuth measured clockwise from true north.
+function solarPosition(date, lat, lon){
+  const rad = Math.PI/180;
+  const n = date.getTime()/86400000 + 2440587.5 - 2451545.0;
+  const L = ((280.460 + 0.9856474*n) % 360 + 360) % 360;
+  const g = (((357.528 + 0.9856003*n) % 360 + 360) % 360) * rad;
+  const lambda = (L + 1.915*Math.sin(g) + 0.020*Math.sin(2*g)) * rad;
+  const eps = (23.439 - 0.0000004*n) * rad;
+  const alpha = Math.atan2(Math.cos(eps)*Math.sin(lambda), Math.cos(lambda));
+  const delta = Math.asin(Math.sin(eps)*Math.sin(lambda));
+  const gmst = (((18.697374558 + 24.06570982441908*n) % 24) + 24) % 24;
+  const H = (gmst*15 + lon)*rad - alpha;
+  const p = lat*rad;
+  const alt = Math.asin(Math.sin(p)*Math.sin(delta) + Math.cos(p)*Math.cos(delta)*Math.cos(H));
+  let az = Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(p) - Math.tan(delta)*Math.cos(p)) + Math.PI;
+  return { alt, az };
+}
+
+// WMO weather codes → how the sky should look
+function skyFromCode(code, cloud){
+  const c = (cloud==null?0:cloud)/100;
+  if (code>=95) return { name:'thunderstorm', haze:0.95, grey:0.9, dim:0.15 };
+  if (code>=71 && code<=77) return { name:'snow', haze:0.8, grey:0.8, dim:0.35 };
+  if (code>=80) return { name:'showers', haze:0.8, grey:0.8, dim:0.25 };
+  if (code>=61) return { name:'rain', haze:0.75, grey:0.8, dim:0.25 };
+  if (code>=51) return { name:'drizzle', haze:0.6, grey:0.65, dim:0.4 };
+  if (code===45||code===48) return { name:'fog', haze:1.0, grey:0.7, dim:0.3 };
+  if (code===3) return { name:'overcast', haze:0.5, grey:0.65, dim:0.35 };
+  if (code===2) return { name:'partly cloudy', haze:0.3, grey:0.3, dim:0.75 };
+  if (code===1) return { name:'mainly clear', haze:0.18, grey:0.14, dim:0.9 };
+  return { name:'clear', haze:0.10 + c*0.2, grey:0.06 + c*0.2, dim:1.0 - c*0.25 };
+}
+
+const lamps = new THREE.Group(); scene.add(lamps);
+function buildLamps(){
+  // Lamps set where people actually move at night: the gate, the vault mouths,
+  // the length of the range, the keep and the outer ward.
+  const spots = [[-46,-21,4], [-46,-15,3], [-25,-9.5,3], [-19,-9.5,3], [-31,-9.5,3],
+                 [-6,8.5,3.5], [12,8.5,3.5], [28,8.5,3.5], [40,-11,4],
+                 [-20,22,3], [-55,-3,3], [10,-8,3]];
+  const bulb = new THREE.MeshBasicMaterial({ color:0xffcf8a });
+  spots.forEach(([u,v,hh])=>{
+    const {e,n} = fromFrame(u,v);
+    const y = groundAt(e,n) + CFG.offsetUp + hh;
+    const g = new THREE.Group();
+    g.position.set(CFG.offsetE, 0, -CFG.offsetN);
+    g.rotation.y = (90-CFG.axisBearing)*DEG;
+    const l = new THREE.PointLight(0xffb257, 1.15, 46, 2);
+    l.position.set(u, y, v);
+    g.add(l);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 6), bulb);
+    m.position.set(u, y, v); g.add(m);
+    lamps.add(g);
+  });
+}
+
+let ENV = null;
+function applyEnvironment(){
+  const now = new Date();
+  const sp = solarPosition(now, CFG.lat0, CFG.lon0);
+  const alt = sp.alt, deg = alt*180/Math.PI;
+  // scene axes: +x east, -z north
+  const dir = new THREE.Vector3(
+    Math.cos(alt)*Math.sin(sp.az), Math.sin(alt), -Math.cos(alt)*Math.cos(sp.az)
+  );
+  sun.position.copy(dir.clone().multiplyScalar(900));
+
+  const w = ENV || {};
+  const s = skyFromCode(w.code==null?0:w.code, w.cloud);
+  const night = deg < -1.0;
+  const dusk = deg >= -1.0 && deg < 8;
+
+  if (night){
+    sun.intensity = 0;
+    // A ruin has nobody to light it: at night it is lit only by the moon. The
+    // inhabited castle keeps its lamps.
+    const lit = (currentEra === 0);
+    moon.intensity = lit ? 0.18 : 0.55;      // half-moon on the empty ruin
+    hemi.intensity = lit ? 0.14 : 0.30;
+    hemi.color.setHex(lit ? 0x2c3d55 : 0x3a4c68); hemi.groundColor.setHex(0x14171c);
+    skyTop.setHex(0x0a1220); skyHor.setHex(0x1d2634);
+    scene.fog.color.setHex(0x141b26);
+    scene.fog.near = 260; scene.fog.far = 2600;
+    lamps.visible = lit;
+  } else {
+    const low = Math.max(0, Math.min(1, (10-deg)/12));   // warm, reddened near the horizon
+    const warm = new THREE.Color(0xfff1d6).lerp(new THREE.Color(0xff9d52), low*0.85);
+    sun.color.copy(warm);
+    sun.intensity = (0.28 + 0.72*Math.min(1, Math.max(0, Math.sin(Math.max(alt,0))*1.5))) * s.dim;
+    moon.intensity = 0;
+    hemi.intensity = 0.45 + s.haze*0.5;
+    hemi.color.setHex(0xcfe0ef); hemi.groundColor.setHex(0x6e6250);
+    const clearTop = new THREE.Color(0x5f8fb0), greyTop = new THREE.Color(0x7c848c);
+    const clearHor = new THREE.Color(0xeadcc2), greyHor = new THREE.Color(0xb9bcc0);
+    skyTop.copy(clearTop).lerp(greyTop, s.grey).lerp(new THREE.Color(0xd8a273), low*0.5);
+    skyHor.copy(clearHor).lerp(greyHor, s.grey).lerp(new THREE.Color(0xf0b382), low*0.6);
+    scene.fog.color.copy(skyHor);
+    scene.fog.near = 1400 - s.haze*1000;
+    scene.fog.far  = 4400 - s.haze*2600;
+    lamps.visible = (currentEra === 0) && dusk && deg < 4;
+  }
+  scene.background = skyTop;
+
+  const el = document.getElementById('conditions');
+  if (el){
+    const t = now.toLocaleTimeString('en-GB',{ hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jerusalem' });
+    const bits = [`Montfort, ${t} local`];
+    if (w.temp!=null) bits.push(`${Math.round(w.temp)}°C`);
+    bits.push(night ? 'night' : s.name);
+    if (deg > -1) bits.push(`sun ${deg.toFixed(0)}° above the horizon`);
+    el.textContent = bits.join(' · ');
+  }
+}
+async function loadWeather(){
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${CFG.lat0}&longitude=${CFG.lon0}&current=temperature_2m,weather_code,cloud_cover,is_day&timezone=auto`);
+    const j = await r.json();
+    if (j && j.current) ENV = { temp:j.current.temperature_2m, code:j.current.weather_code, cloud:j.current.cloud_cover };
+  } catch(err){ console.warn('Weather unavailable, using clear-sky defaults:', err); }
+}
+
+
+/* ---------- state ---------- */
+let elevRaster = null;   // {data, w, h, x0, y0, z}
+let imgRaster = null, imgRasterOuter = null;   // {canvas, x0, y0, w, h, z}
+let elev0 = 0;
+let terrainMeshes = [], terrainMatFlat = null;
+let liveTerrain = false, liveImagery = false;
+const castle = new THREE.Group(); scene.add(castle);
+const groups = { peak: new THREE.Group(), ruin: new THREE.Group() };
+scene.add(groups.peak, groups.ruin);
+let labelDefs = [], labelEls = [];
+
+/* ---------- tile loading ---------- */
+const progressEl = document.getElementById('progress');
+function loadImage(url, ms){
+  return new Promise((res,rej)=>{
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    const t = setTimeout(()=>rej(new Error('timeout')), ms||25000);
+    img.onload = ()=>{ clearTimeout(t); res(img); };
+    img.onerror = ()=>{ clearTimeout(t); rej(new Error('load failed')); };
+    img.src = url;
+  });
+}
+async function loadRaster(urlFn, z, label, d){
+  d = d || CFG.half;
+  const lonMin = CFG.lon0 - d/M_LON, lonMax = CFG.lon0 + d/M_LON;
+  const latMin = CFG.lat0 - d/M_LAT, latMax = CFG.lat0 + d/M_LAT;
+  const x0 = Math.floor(lonToX(lonMin,z)), x1 = Math.floor(lonToX(lonMax,z));
+  const y0 = Math.floor(latToY(latMax,z)), y1 = Math.floor(latToY(latMin,z));
+  const w = (x1-x0+1)*256, h = (y1-y0+1)*256;
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const total = (x1-x0+1)*(y1-y0+1); let done = 0;
+  const jobs = [];
+  for (let x=x0; x<=x1; x++) for (let y=y0; y<=y1; y++){
+    jobs.push(loadImage(urlFn(z,x,y)).then(img=>{
+      ctx.drawImage(img, (x-x0)*256, (y-y0)*256); done++;
+      progressEl.textContent = `${label}: ${done} / ${total} tiles`;
+    }));
+  }
+  await Promise.all(jobs);
+  return { canvas, ctx, x0, y0, w, h, z };
+}
+
+async function loadTerrain(){
+  const r = await loadRaster(TERRAIN_URL, CFG.terrainZoom, 'terrain', CFG.outerHalf);
+  const px = r.ctx.getImageData(0,0,r.w,r.h).data;
+  const data = new Float32Array(r.w*r.h);
+  for (let i=0, j=0; i<data.length; i++, j+=4) data[i] = (px[j]*256 + px[j+1] + px[j+2]/256) - 32768;
+  elevRaster = { data, w:r.w, h:r.h, x0:r.x0, y0:r.y0, z:r.z };
+  liveTerrain = true;
+}
+async function loadImagery(){
+  const r = await loadRaster(IMAGERY_URL, CFG.imageryZoom, 'imagery', CFG.half);
+  r.ctx.getImageData(0,0,1,1);           // throws if the canvas is tainted (no CORS) — then no drape
+  imgRaster = r; liveImagery = true;
+  try {
+    const o = await loadRaster(IMAGERY_URL, CFG.imageryZoomOuter, 'horizon', CFG.outerHalf);
+    o.ctx.getImageData(0,0,1,1);
+    imgRasterOuter = o;
+  } catch(err){ console.warn('Horizon imagery unavailable:', err); }
+}
+
+/* ---------- elevation sampling ---------- */
+function elevAtLatLon(lat, lon){
+  const R = elevRaster;
+  const px = (lonToX(lon,R.z)-R.x0)*256 - 0.5, py = (latToY(lat,R.z)-R.y0)*256 - 0.5;
+  const x = Math.max(0, Math.min(R.w-2, Math.floor(px))), y = Math.max(0, Math.min(R.h-2, Math.floor(py)));
+  const fx = Math.max(0, Math.min(1, px-x)), fy = Math.max(0, Math.min(1, py-y));
+  const d = R.data, i = y*R.w + x;
+  const a = d[i], b = d[i+1], c = d[i+R.w], e = d[i+R.w+1];
+  return (a*(1-fx)+b*fx)*(1-fy) + (c*(1-fx)+e*fx)*fy;
+}
+
+// plan-derived fallback (frame coords): ridge platform, cliffs to the gorge, hillside beyond the moats
+function noise(x,z,s){ let v=0,a=1,f=1,t=0; for(let o=0;o<4;o++){ v+=a*Math.sin(x*.05*f+s)*Math.cos(z*.06*f+s*1.3); t+=a; a*=.5; f*=2.1; } return v/t; }
+function fallbackHeight(e,n){
+  const {u,v} = toFrame(e,n);
+  let spine;
+  if (u > 95) spine = 8 + (u-95)*0.6;                 // hill to the east
+  else if (u > 58) spine = 6 - Math.max(0,58-u)*0.0;  // berm + moat zone (moats carved separately)
+  else spine = 6 - Math.max(0, (58-u))*0.11 - Math.max(0, -u-45)*0.9;  // platform sloping west, cliff beyond
+  const half = 11, av = Math.abs(v);
+  let h = av <= half ? spine - (av/half)*(av/half)*1.2
+                     : spine - (1-Math.exp(-(av-half)/18))*70 - (av-half)*0.06;
+  if (v < -60) h = Math.min(h, -60 + noise(e,n,9));    // gorge floor to the north
+  return h + noise(e,n,4.2)*1.8;
+}
+
+// rock-cut moats (Ch.9): inner 20 m wide / 11 m deep in front of the keep, outer 10 m wide / 13 m deep
+function moatCut(e,n){
+  if (!CFG.carveMoats) return 0;
+  const {u,v} = toFrame(e,n);
+  if (Math.abs(v) > 16) return 0;
+  const edge = Math.max(0, 1 - Math.max(0, Math.abs(v)-11)/5); // soften at the flanks
+  let cut = 0;
+  const trench = (uMin,uMax,depth) => { if (u>uMin && u<uMax){ const t=(u-uMin)/(uMax-uMin); return depth*Math.sin(t*Math.PI)**0.6; } return 0; };
+  cut = Math.max(trench(58,78,11), trench(85,95,13));
+  return -cut*edge;
+}
+
+/* The elevation source resolves about 30 m, which renders this spur as a smooth
+   green swell. The real ridge is craggy limestone. microRelief adds small-scale
+   rock form below the DEM's resolution — it is modelled geometry, not texture. */
+function microRelief(e,n){
+  return noise(e*6.0, n*6.0, 11)*0.75      // ~20 m rock swells
+       + noise(e*14.0, n*14.0, 5)*0.30     // ~9 m broken ground
+       + noise(e*31.0, n*31.0, 23)*0.12;   // fine rubble
+}
+function groundAt(e,n){
+  if (liveTerrain){ const p = toLatLon(e,n); return elevAtLatLon(p.lat, p.lon) - elev0 + moatCut(e,n) + microRelief(e,n); }
+  return fallbackHeight(e,n) + moatCut(e,n) + microRelief(e,n);
+}
+
+/* ---------- terrain mesh ---------- */
+/* Rock outcrops as actual geometry. In the aerial views the spur is not a
+   smooth slope but broken limestone: crags along the ridge crest, boulder
+   fields on the flanks, bare rock where the soil has gone. Deterministic
+   placement, so the scene is identical on every load. */
+const rockMat = new THREE.MeshStandardMaterial({ color:0x9a927f, roughness:1, metalness:0, flatShading:true });
+const rockMatPale = new THREE.MeshStandardMaterial({ color:0xb3a993, roughness:1, metalness:0, flatShading:true });
+let rockGroup = null;
+function scatterRocks(){
+  if (rockGroup){ scene.remove(rockGroup); }
+  rockGroup = new THREE.Group();
+  let seed = 20260909;
+  const rnd = ()=>{ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; };
+  const placed = [];
+  for (let i=0;i<340;i++){
+    const ang = rnd()*Math.PI*2;
+    const rad = 40 + Math.pow(rnd(), 0.65)*430;
+    const e = Math.cos(ang)*rad, n = Math.sin(ang)*rad;
+    const {u,v} = toFrame(e + CFG.offsetE, n + CFG.offsetN);
+    // leave the castle platform and its immediate approaches clear
+    if (Math.abs(v) < 26 && u > -70 && u < 70) continue;
+    const y = groundAt(e,n) + CFG.offsetUp;
+    // favour steeper ground, where bare rock actually shows
+    const slope = Math.abs(groundAt(e+6,n)-groundAt(e-6,n)) + Math.abs(groundAt(e,n+6)-groundAt(e,n-6));
+    if (slope < 1.4 && rnd() > 0.30) continue;
+    const r = 0.8 + rnd()*3.4;
+    const geo = new THREE.IcosahedronGeometry(r, 0);
+    const m = new THREE.Mesh(geo, rnd() > 0.6 ? rockMatPale : rockMat);
+    m.position.set(e, y + r*0.35, -n);
+    m.scale.set(1 + rnd()*0.7, 0.45 + rnd()*0.6, 1 + rnd()*0.7);
+    m.rotation.set(rnd()*0.5, rnd()*Math.PI*2, rnd()*0.5);
+    m.castShadow = true; m.receiveShadow = true;
+    rockGroup.add(m);
+    placed.push(1);
+  }
+  // larger crags along the ridge crest, north and south of the castle
+  for (let i=0;i<26;i++){
+    const side = i%2 ? 1 : -1;
+    const u = -80 + (i/26)*230 + rnd()*14;
+    const v = side*(30 + rnd()*16);
+    const {e,n} = fromFrame(u,v);
+    const y = groundAt(e,n) + CFG.offsetUp;
+    const r = 2.6 + rnd()*4.2;
+    const geo = new THREE.DodecahedronGeometry(r, 0);
+    const m = new THREE.Mesh(geo, rockMat);
+    m.position.set(e, y + r*0.25, -n);
+    m.scale.set(1 + rnd()*0.9, 0.5 + rnd()*0.7, 1 + rnd()*0.9);
+    m.rotation.set(rnd()*0.4, rnd()*Math.PI*2, rnd()*0.4);
+    m.castShadow = true; m.receiveShadow = true;
+    rockGroup.add(m);
+  }
+  scene.add(rockGroup);
+}
+
+function buildTerrain(){
+  terrainMeshes.forEach(m=>{ scene.remove(m); m.geometry.dispose(); });
+  terrainMeshes = [];
+  if (!terrainMatFlat) terrainMatFlat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0 });
+  buildTerrainRing(CFG.coreHalf, CFG.coreSpacing, imgRaster, 0);            // finest, at the castle
+  buildTerrainRing(CFG.half, CFG.spacing, imgRaster, -0.5);                 // fine, around it
+  buildTerrainRing(CFG.outerHalf, CFG.outerSpacing, imgRasterOuter, -1.4);  // coarse, to the horizon
+}
+
+/* One square of terrain. The coarse ring is dropped slightly so the fine ring
+   always wins where they overlap, instead of the two z-fighting. */
+function buildTerrainRing(half, spacing, raster, yOffset){
+  const N = Math.round(2*half/spacing)+1;
+  const pos = new Float32Array(N*N*3), uv = new Float32Array(N*N*2), col = new Float32Array(N*N*3);
+  const idx = [];
+  const cRock = new THREE.Color(0x8b7b62), cGrass = new THREE.Color(0x6f8250),
+        cDry  = new THREE.Color(0x9b9a62), cMaquis = new THREE.Color(0x4d6a3e);
+  for (let j=0;j<N;j++) for (let i=0;i<N;i++){
+    const e = -half + i*spacing, n = half - j*spacing;
+    const k = j*N+i;
+    pos[k*3]=e; pos[k*3+1]=groundAt(e,n)+yOffset; pos[k*3+2]=-n;
+    if (raster){
+      const p = toLatLon(e,n);
+      uv[k*2]   = (lonToX(p.lon,raster.z)-raster.x0)*256/raster.w;
+      uv[k*2+1] = 1 - (latToY(p.lat,raster.z)-raster.y0)*256/raster.h;
+    } else { uv[k*2]=i/(N-1); uv[k*2+1]=1-j/(N-1); }
+    const sl = Math.abs(groundAt(e+spacing,n)-groundAt(e-spacing,n))
+             + Math.abs(groundAt(e,n+spacing)-groundAt(e,n-spacing));
+    const slope = Math.min(1, sl/(4*spacing)*1.4);
+    const c = cDry.clone().lerp(cGrass, 0.5+0.3*noise(e,n,2))
+                  .lerp(cMaquis, Math.min(0.7, slope*0.9+0.2*noise(e,n,7)))
+                  .lerp(cRock, Math.max(0, slope-0.55)*1.3);
+    col[k*3]=c.r; col[k*3+1]=c.g; col[k*3+2]=c.b;
+  }
+  for (let j=0;j<N-1;j++) for (let i=0;i<N-1;i++){
+    const a=j*N+i, b=a+1, c2=a+N, d=c2+1; idx.push(a,c2,b, b,c2,d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  g.setIndex(idx); g.computeVertexNormals();
+
+  let mat = terrainMatFlat;
+  if (raster && showImagery){
+    try {
+      const tex = new THREE.CanvasTexture(raster.canvas);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      mat = new THREE.MeshStandardMaterial({ map:tex, roughness:0.95, metalness:0 });
+      raster.mat = mat;
+    } catch(err){ console.warn('Imagery texture unavailable:', err); }
+  }
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.receiveShadow = (yOffset === 0);
+  scene.add(mesh); terrainMeshes.push(mesh);
+}
+
+/* ---------- buildings ---------- */
+const matPeak = new THREE.MeshStandardMaterial({ color:0xe4d7b4, roughness:0.9, metalness:0.02 });
+const matRuin = new THREE.MeshStandardMaterial({ color:0xc9bb92, roughness:0.95, metalness:0.02 });
+const roofMat = new THREE.MeshStandardMaterial({ color:0x7a5233, roughness:0.85, metalness:0.02, side:THREE.DoubleSide });
+const edgePeak = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.55 });
+const edgeRuin = new THREE.LineBasicMaterial({ color:0x3d3527, transparent:true, opacity:0.4 });
+function stoneMaterial(state){ return state==='peak' ? matPeak : matRuin; }
+const FOUND = 10; // metres of "foundation" buried into the slope so nothing floats
+
+function jagTop(geo, amount, seed){
+  const p = geo.attributes.position; const box = new THREE.Box3().setFromBufferAttribute(p);
+  for (let i=0;i<p.count;i++){ if (p.getY(i) > box.max.y-0.01){ const n = noise(p.getX(i)*3+seed, p.getZ(i)*3+seed*2, seed); p.setY(i, p.getY(i) + n*amount); } }
+  geo.computeVertexNormals();
+}
+function addToGroup(group, geo, mat, edgeMat, x, y, z, rotY){
+  const m = new THREE.Mesh(geo, mat); m.castShadow = m.receiveShadow = true;
+  m.position.set(x,y,z); m.rotation.y = rotY||0; group.add(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgeMat);
+  e.position.copy(m.position); e.rotation.y = rotY||0; group.add(e);
+  return m;
+}
+// frame-coordinate box: centre (u,v), size along u (su) and v (sv), height h above ground, optional jag
+function box(state, u, v, su, sv, h, jag, rot){
+  const {e,n} = fromFrame(u,v);
+  const base = baseAt(e,n);
+  const geo = new THREE.BoxGeometry(su, h+FOUND, sv, 1, 1, 1);
+  if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u+v); geo.translate(0,-(h+FOUND)/2,0); }
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base + (h-FOUND)/2, v, rot||0);
+}
+function cylinder(state, u, v, r, h, segs, jag, taper){
+  const {e,n} = fromFrame(u,v);
+  const base = baseAt(e,n);
+  const geo = new THREE.CylinderGeometry(r, r*(taper||1.03), h+FOUND, segs||20, 1, false);
+  if (jag) { geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, u*2+v); geo.translate(0,-(h+FOUND)/2,0); }
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v);
+}
+function wall(state, pts, h, thick, ruinPattern){
+  for (let i=0;i<pts.length-1;i++){
+    const [u1,v1]=pts[i], [u2,v2]=pts[i+1];
+    const du=u2-u1, dv=v2-v1, len=Math.hypot(du,dv), ang=Math.atan2(dv,du);
+    const cu=(u1+u2)/2, cv=(v1+v2)/2;
+    let hh = h, jag = 0;
+    if (ruinPattern){
+      // gently varying survival rather than a hard tall/short alternation, so the
+      // wall keeps reading as one continuous curved ribbon (see Ch.4 n.9: some
+      // stretches still stand to their original full height)
+      const w = 0.5 + 0.5*Math.sin(i*0.9) * Math.cos(i*0.37);
+      hh = h * (0.34 + 0.66*w);
+      jag = 0.45;
+    }
+    // segments overlap generously so the joints between them disappear on a curve
+    box(state, cu, cv, len+thick*1.15, thick, hh, jag, -ang);
+  }
+}
+// Chaikin corner-cutting: turns a hand-placed polyline into a smoothly curved one
+// (the outer enceinte follows the natural curve of the spur, not straight facets —
+// visible in every plan since Kitchener's, and in the ruin photos, Ch.4 Plate 4.2).
+function chaikin(pts, iterations){
+  let p = pts.slice();
+  for (let it=0; it<(iterations||2); it++){
+    const np = [p[0]];
+    for (let i=0;i<p.length-1;i++){
+      const [x1,y1]=p[i], [x2,y2]=p[i+1];
+      np.push([x1+0.25*(x2-x1), y1+0.25*(y2-y1)], [x1+0.75*(x2-x1), y1+0.75*(y2-y1)]);
+    }
+    np.push(p[p.length-1]); p = np;
+  }
+  return p;
+}
+
+/* A curtain wall built as ONE continuous ribbon of geometry rather than a row of
+   boxes. Vertices are generated along the smoothed path with a left/right offset
+   for the thickness, so the enceinte curves smoothly — the west end of Montfort's
+   outer wall is explicitly "a curved wall" (Ch.8) and reads as a true arc in the
+   standing remains. Ruin heights vary continuously along the path instead of
+   stepping between segments. */
+function wallRibbon(state, pts, h, thick, ruinPattern, sink){
+  sink = sink==null ? 3 : sink;
+  const N = pts.length, half = thick/2;
+  const hs = [], nor = [];
+  for (let i=0;i<N;i++){
+    const t = i/(N-1);
+    if (!ruinPattern) hs.push(h);
+    else {
+      /* In the aerial views the ruined enceinte is not a continuous low wall:
+         it survives as separated stretches, some still near full height, with
+         real gaps of nothing between them. Burying a station below the ground
+         opens a true gap in the ribbon rather than just lowering it. */
+      const w = 0.55 + 0.45*Math.sin(t*17.0)*Math.cos(t*6.3) + 0.18*Math.sin(t*3.1);
+      const survival = 0.34 + 0.66*w;
+      const gap = Math.sin(t*9.4 + 1.2)*Math.cos(t*23.0);
+      hs.push(gap < -0.42 ? -6 : h*Math.max(0.25, Math.min(1, survival)));
+    }
+    const a = pts[Math.max(0,i-1)], b = pts[Math.min(N-1,i+1)];
+    let dx=b[0]-a[0], dy=b[1]-a[1];
+    const L = Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+    nor.push([-dy, dx]);
+  }
+  const pos = [], idx = [];
+  const gAt = (uu,vv)=>{ const p=fromFrame(uu,vv); return groundAt(p.e,p.n); };
+  for (let i=0;i<N;i++){
+    const [u,v] = pts[i], [nx,nv] = nor[i];
+    const uo=u+nx*half, vo=v+nv*half, ui=u-nx*half, vi=v-nv*half;
+    const gC = gAt(u,v) + CFG.offsetUp;                 // wall-head follows the centreline
+    const gLow = Math.min(gAt(uo,vo), gAt(ui,vi)) + CFG.offsetUp;
+    const yt = gC + hs[i];
+    const yb = Math.min(gLow, gC) - sink;               // foot buried just below the lower side
+    pos.push(uo,yb,vo,  uo,yt,vo,  ui,yt,vi,  ui,yb,vi);
+  }
+  for (let i=0;i<N-1;i++){
+    const a=i*4, b=(i+1)*4;
+    idx.push(a+0,b+0,b+1,  a+0,b+1,a+1);   // outer face
+    idx.push(a+1,b+1,b+2,  a+1,b+2,a+2);   // top
+    idx.push(a+3,a+2,b+2,  a+3,b+2,b+3);   // inner face
+  }
+  // end caps
+  idx.push(0,2,1, 0,3,2);
+  const e=(N-1)*4; idx.push(e+0,e+1,e+2, e+0,e+2,e+3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, stoneMaterial(state));
+  mesh.castShadow = mesh.receiveShadow = true;
+  groups[state].add(mesh);
+  return hs;
+}
+
+/* A masonry building has a LEVEL wall-head: its walls are coursed up to one
+   height, and the foundations absorb the fall of the ground beneath. Seating
+   each wall on the ground under itself (as a naive placement does) makes the
+   wall-heads wander by metres across a long range, so roofs float off one end
+   and bury themselves in the other. PIN fixes one datum for a whole building;
+   the buried FOUND depth below it takes up the slope. */
+let PIN = null;
+function pinTo(u, v, su, sv, rot){
+  rot = rot||0;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  let hi = -Infinity;
+  for (const [dx,dz] of [[-su/2,-sv/2],[su/2,-sv/2],[su/2,sv/2],[-su/2,sv/2],[0,0]]){
+    const uu = u + dx*c - dz*s, vv = v + dx*s + dz*c;
+    const p = fromFrame(uu,vv);
+    hi = Math.max(hi, groundAt(p.e,p.n));
+  }
+  PIN = hi + CFG.offsetUp;
+  return PIN;
+}
+function unpin(){ PIN = null; }
+function baseAt(e, n){ return (PIN !== null) ? PIN : groundAt(e,n) + CFG.offsetUp; }
+
+/* Dark inner shell, so a window shows an unlit interior rather than daylight
+   straight through the far wall. Rendered back-faces-only, so it is invisible
+   from outside and only seen through the openings. */
+const interiorMat = new THREE.MeshStandardMaterial({ color:0x241f18, roughness:1, metalness:0, side:THREE.BackSide });
+function interiorShell(state, u, v, su, sv, h, rot){
+  const geo = new THREE.BoxGeometry(su, h, sv);
+  const {e,n} = fromFrame(u,v); const base = baseAt(e,n);
+  const m = new THREE.Mesh(geo, interiorMat);
+  m.position.set(u, base + h/2 - 1.5, v); m.rotation.y = rot||0;
+  groups[state].add(m);
+}
+
+/* Grisaille window glass is documented at Montfort — painted and coloured
+   fragments were recovered in 1926 and again by the MCP, and are published in
+   full (Ch.17). Glazing therefore belongs in the c. 1240 state, on the domestic
+   and ceremonial openings; slits, vault mouths and gate passages stay open. */
+const glassMat = new THREE.MeshStandardMaterial({
+  color:0xcfe0d2, roughness:0.15, metalness:0, transparent:true, opacity:0.34,
+  emissive:0x2b3a33, emissiveIntensity:0.35, side:THREE.DoubleSide, depthWrite:false
+});
+
+// Points along a circular arc, for wall runs that are actually round.
+function arcPoints(cu, cv, r, a0, a1, n){
+  const pts = [];
+  for (let i=0;i<=n;i++){ const t = a0 + (a1-a0)*i/n; pts.push([cu + r*Math.cos(t), cv + r*Math.sin(t)]); }
+  return pts;
+}
+
+// Drop points that sit too close together, so heavy smoothing doesn't turn into
+// hundreds of near-zero-length steps along the wall.
+function resample(pts, minLen){
+  const out = [pts[0]];
+  for (let i=1;i<pts.length-1;i++){
+    const last = out[out.length-1];
+    if (Math.hypot(pts[i][0]-last[0], pts[i][1]-last[1]) >= minLen) out.push(pts[i]);
+  }
+  out.push(pts[pts.length-1]);
+  return out;
+}
+
+/* ---------- true open arches (real voids, not a texture trick) ----------
+   The most recognisable feature of the standing ruin (Ch.4 Plate 4.2; the west
+   range undercroft is explicitly the one place "no vaulting remaining intact"
+   does NOT apply — Ch.4) is a row of open, round-headed arches. Built as a real
+   Shape with holes, extruded — you see straight through them, not a painted-on
+   arch. */
+function archArcade(state, u, v, su, thick, wallH, count, archW, archH, sill, rot){
+  sill = sill||0;
+  const shape = new THREE.Shape();
+  shape.moveTo(-su/2, -FOUND); shape.lineTo(su/2,-FOUND); shape.lineTo(su/2, wallH); shape.lineTo(-su/2, wallH); shape.lineTo(-su/2,-FOUND);
+  const gap = (su - count*archW) / (count+1);
+  for (let i=0;i<count;i++){
+    const x0 = -su/2 + gap + i*(archW+gap);
+    const cx = x0 + archW/2, r = archW/2;
+    const springY = sill + Math.max(0.05, archH - r);
+    const hole = new THREE.Path();
+    hole.moveTo(x0, sill); hole.lineTo(x0, springY);
+    hole.absarc(cx, springY, r, Math.PI, 0, true);
+    hole.lineTo(x0+archW, sill); hole.lineTo(x0, sill);
+    shape.holes.push(hole);
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled:false, curveSegments:16 });
+  geo.translate(0, 0, -thick/2);
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base, v, rot||0);
+}
+
+/* ---------- real openings, cut through the masonry ----------
+   Every dimension below comes from the published record rather than invention:
+   • outer-wall windows: 0.85–0.95 m wide inside, 0.40 m outside (a true splay),
+     1.1–1.3 m high, 1.92–2.55 m apart, sills 7 m above the exterior wall base,
+     in a stretch 20.5 m long × 1.3 m thick × 9 m high — its original height (Ch.5)
+   • gate tower E: passage arch c. 2.8 m wide, arched recess above c. 2.4 m wide
+     holding a slit c. 0.85 × 1.3 m; scaled off the measured south-face drawing
+     (Ch.9, Plate 9.39, which carries a 4 m scale bar)
+   • central building: two windows and a (later blocked) door in the west wall,
+     two arrow slits above them on triangular bases, a door near the west end of
+     the north wall, and large windows between the pilasters of the south wall
+     (Ch.8, Plates 8.4–8.7)
+   • machicolations over gates C, D and the top floor of gate tower E (Ch.9)      */
+/* Two-centred (Gothic) arch, struck from two centres on the springing line.
+   The sources are explicit that the upper storeys were Gothic — "various types
+   of Gothic rib vaulting" over the central building's domestic apartments
+   (Ch.8), and the hall below the castle is described as "distinct archaic
+   Gothic style" with ogival ribs (Ch.10) — and pointed heads are visible in the
+   standing ruin today. Round heads are kept only where the evidence shows them,
+   notably the gate passage on the measured drawing and the barrel-vault mouths. */
+/* Garderobe: a corbelled latrine shaft projecting from a wall face. Ch.9 records
+   a latrine chute descending on the southern side of the western building, and a
+   second east of it below the vestibule — both entirely absent until now. */
+function garderobe(state, u, v, side, faceRot, sillY, h){
+  const rot = faceRot||0, c=Math.cos(rot), s=Math.sin(rot);
+  const w=1.5, d=1.3;
+  const off = side*(d/2);
+  const wu = u - off*s, wv = v + off*c;
+  const mat = stoneMaterial(state), em = state==='peak'?edgePeak:edgeRuin;
+  const g = new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Mesh(g, mat); m.castShadow=m.receiveShadow=true;
+  m.position.set(wu, sillY + h/2, wv); m.rotation.y = rot;
+  groups[state].add(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(g,22), em);
+  e.position.copy(m.position); e.rotation.y = rot; groups[state].add(e);
+  // corbels carrying it
+  for (let i=-1;i<=1;i+=2){
+    const cg = new THREE.BoxGeometry(0.35, 0.4, d*0.9);
+    const cu = wu + (i*0.55)*c, cv = wv + (i*0.55)*s;
+    const cm = new THREE.Mesh(cg, mat); cm.castShadow=true;
+    cm.position.set(cu, sillY-0.2, cv); cm.rotation.y = rot;
+    groups[state].add(cm);
+  }
+}
+
+function holePointed(x, y, w, h){
+  const p = new THREE.Path();
+  const r = w*0.75;                                  // r > w/2 gives the point
+  const rise = Math.sqrt(Math.max(1e-4, r*r - (r-w/2)*(r-w/2)));
+  const spring = y + Math.max(0.05, h - rise);
+  const cxR = x + r, cxL = x + w - r, apex = x + w/2;
+  p.moveTo(x, y);
+  p.lineTo(x, spring);
+  p.absarc(cxR, spring, r, Math.PI, Math.atan2(rise, apex-cxR), true);
+  p.absarc(cxL, spring, r, Math.atan2(rise, apex-cxL), 0, true);
+  p.lineTo(x+w, y);
+  p.lineTo(x, y);
+  return p;
+}
+function holeRect(x, y, w, h){
+  const p = new THREE.Path();
+  p.moveTo(x,y); p.lineTo(x+w,y); p.lineTo(x+w,y+h); p.lineTo(x,y+h); p.lineTo(x,y);
+  return p;
+}
+function holeArch(x, y, w, h){
+  const r = w/2, cx = x+r, spring = y + Math.max(0.05, h-r);
+  const p = new THREE.Path();
+  p.moveTo(x,y); p.lineTo(x,spring);
+  p.absarc(cx, spring, r, Math.PI, 0, true);
+  p.lineTo(x+w, y); p.lineTo(x, y);
+  return p;
+}
+function holeSlit(x, y, w, h){
+  // arrow slit on the triangular base recorded in situ on the west wall (Plate 8.4)
+  const tri = Math.min(h*0.4, w*2.0);
+  const p = new THREE.Path();
+  p.moveTo(x+w/2, y); p.lineTo(x+w, y+tri); p.lineTo(x+w, y+h);
+  p.lineTo(x, y+h); p.lineTo(x, y+tri); p.lineTo(x+w/2, y);
+  return p;
+}
+// A wall face built as a real extruded panel with the openings cut clean through.
+// openings: [{x (centre, along the wall), y (sill above base), w, h, kind}]
+function wallPanel(state, u, v, su, thick, wallH, openings, rot, sink){
+  sink = (sink==null) ? FOUND : sink;
+  const shape = new THREE.Shape();
+  shape.moveTo(-su/2,-sink); shape.lineTo(su/2,-sink); shape.lineTo(su/2,wallH);
+  shape.lineTo(-su/2,wallH); shape.lineTo(-su/2,-sink);
+  (openings||[]).forEach(o=>{
+    const x = o.x - o.w/2;
+    shape.holes.push(o.kind==='arch'    ? holeArch(x,o.y,o.w,o.h)
+                   : o.kind==='gothic'  ? holePointed(x,o.y,o.w,o.h)
+                   : o.kind==='slit'    ? holeSlit(x,o.y,o.w,o.h)
+                   : holeRect(x,o.y,o.w,o.h));
+  });
+  const geo = new THREE.ExtrudeGeometry(shape, { depth:thick, bevelEnabled:false, curveSegments:14 });
+  geo.translate(0,0,-thick/2);
+  const {e,n} = fromFrame(u,v); const base = baseAt(e,n);
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base, v, rot||0);
+
+  // glazing, set back within the reveal so the opening still reads as deep
+  if (state === 'peak'){
+    const c = Math.cos(rot||0), s = Math.sin(rot||0);
+    (openings||[]).forEach(o=>{
+      if (!o.glass) return;
+      const gy = base + o.y + o.h/2;
+      const gz = thick*0.28;                       // recessed, not flush
+      const wx = u + o.x*c - gz*s, wz = v + o.x*s + gz*c;
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(o.w*0.94, o.h*0.94), glassMat);
+      pane.position.set(wx, gy, wz); pane.rotation.y = rot||0;
+      groups.peak.add(pane);
+    });
+  }
+}
+// Corbelled machicolation projecting from a wall head, over a gate.
+function machicolation(state, u, v, width, topY, rot, side){
+  rot = rot||0; side = side||1;
+  const n = Math.max(3, Math.round(width/1.15));
+  const cw=0.42, cd=1.15, chh=0.6;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  for (let i=0;i<n;i++){
+    const t = n===1 ? 0.5 : i/(n-1);
+    const lx = -width/2 + width*t, lz = side*cd*0.42;
+    const uu = u + lx*c - lz*s, vv = v + lx*s + lz*c;
+    const geo = new THREE.BoxGeometry(cw, chh, cd);
+    const mesh = new THREE.Mesh(geo, stoneMaterial(state)); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY-chh/2, vv); mesh.rotation.y = rot;
+    groups[state].add(mesh);
+    const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), state==='peak'?edgePeak:edgeRuin);
+    ed.position.copy(mesh.position); ed.rotation.y = rot; groups[state].add(ed);
+  }
+  // the projecting floor slab the corbels carry
+  const slabD = cd*0.95, lz = side*cd*0.5;
+  const geo = new THREE.BoxGeometry(width, 0.45, slabD);
+  const uu = u - lz*s, vv = v + lz*c;
+  const mesh = new THREE.Mesh(geo, stoneMaterial(state)); mesh.castShadow = mesh.receiveShadow = true;
+  mesh.position.set(uu, topY+0.22, vv); mesh.rotation.y = rot; groups[state].add(mesh);
+  const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), state==='peak'?edgePeak:edgeRuin);
+  ed.position.copy(mesh.position); ed.rotation.y = rot; groups[state].add(ed);
+}
+// Battered skirt at the foot of a rectangular tower — the keep has "a steep talus"
+// on north, south and probably east (Ch.9).
+function talusSkirt(state, u, v, topW, topD, spread, h, rot){
+  const geo = new THREE.CylinderGeometry(1, 1+spread, h+FOUND, 4, 1, false);
+  geo.rotateY(Math.PI/4);
+  geo.scale(topW/Math.SQRT2, 1, topD/Math.SQRT2);
+  const {e,n} = fromFrame(u,v); const base = baseAt(e,n);
+  addToGroup(groups[state], geo, stoneMaterial(state), state==='peak'?edgePeak:edgeRuin, u, base+(h-FOUND)/2, v, rot||0);
+}
+
+/* ---------- battered round tower (talus base + straight shaft) ----------
+   Real Crusader corner towers flare outward at the base (a talus, both a
+   defensive glacis and extra footing strength) then rise as a plain cylindrical
+   shaft — visible clearly in current photographs of the round tower. A single
+   linear-taper cylinder across the whole height reads wrong; two stacked
+   pieces gets the silhouette right. */
+function roundTower(state, u, v, rTop, rBase, talusH, shaftH, segs){
+  segs = segs||24;
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  const mat = stoneMaterial(state), edgeMat = state==='peak'?edgePeak:edgeRuin;
+  const g1 = new THREE.CylinderGeometry(rTop, rBase, talusH+FOUND, segs, 1, false);
+  addToGroup(groups[state], g1, mat, edgeMat, u, base+(talusH-FOUND)/2, v);
+  if (shaftH > 0.3){
+    const g2 = new THREE.CylinderGeometry(rTop, rTop*1.02, shaftH, segs, 1, false);
+    addToGroup(groups[state], g2, mat, edgeMat, u, base+talusH+shaftH/2, v);
+  }
+}
+
+
+/* ---------- silhouette detail: roofs + crenellations (peak state only) ----------
+   Domestic ranges (central range, western wing) get pitched timber roofs — precedent
+   in Lindemann's 1938 reconstruction (Ch.5, Plate 5.18) and the dendro evidence for
+   structural pine/cypress timber (Ch.22). Defensive elements (keep, outer wall, gate
+   tower, corner tower) get flat crenellated fighting platforms, not pointed caps —
+   the standard Crusader military-architecture roofline, not a storybook one. */
+const roofEdgeMat = new THREE.LineBasicMaterial({ color:0x2e2013, transparent:true, opacity:0.5 });
+
+function topYOf(u,v,h){ const {e,n} = fromFrame(u,v); return baseAt(e,n) + h; }
+
+function gableRoof(u, v, su, sv, wallH, ridgeH, rot, overhangEnd, overhangSide, eaveY){
+  // A roof sits ON the wall head and oversails it. Dropping the eave below the
+  // wall top leaves the roof in a trough with an open slot along the eave.
+  overhangEnd  = (overhangEnd  == null) ? 0.8 : overhangEnd;
+  overhangSide = (overhangSide == null) ? 1.4 : overhangSide;
+  rot = rot || 0;
+  const hw = su/2+overhangEnd, hd = sv/2+overhangSide;
+  const Lf=[-hw,0,-hd], Lb=[-hw,0,hd], Lr=[-hw,ridgeH,0], Rf=[hw,0,-hd], Rb=[hw,0,hd], Rr=[hw,ridgeH,0];
+  const tris = [Lf,Rf,Rr, Lf,Rr,Lr, Rb,Lb,Lr, Rb,Lr,Rr, Lf,Lr,Lb, Rb,Rr,Rf];
+  const pos = new Float32Array(tris.length*3);
+  tris.forEach((p,i)=>{ pos[i*3]=p[0]; pos[i*3+1]=p[1]; pos[i*3+2]=p[2]; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.computeVertexNormals();
+  const eave = (eaveY == null ? topYOf(u,v,wallH) : eaveY);
+  const mesh = new THREE.Mesh(geo, roofMat); mesh.castShadow = mesh.receiveShadow = true;
+  mesh.position.set(u, eave, v); mesh.rotation.y = rot; groups.peak.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), roofEdgeMat);
+  edges.position.copy(mesh.position); edges.rotation.y = rot; groups.peak.add(edges);
+
+  // fascia along both eaves: gives the roof edge real thickness and closes the
+  // hairline where the covering meets the masonry
+  const fH = 0.55, c = Math.cos(rot), s = Math.sin(rot);
+  [-hd, hd].forEach(lz=>{
+    const g2 = new THREE.BoxGeometry(su + 2*overhangEnd, fH, 0.3);
+    const wu = u - lz*s, wv = v + lz*c;
+    const m2 = new THREE.Mesh(g2, roofMat); m2.castShadow = m2.receiveShadow = true;
+    m2.position.set(wu, eave - fH/2 + 0.05, wv); m2.rotation.y = rot;
+    groups.peak.add(m2);
+    const e2 = new THREE.LineSegments(new THREE.EdgesGeometry(g2, 22), roofEdgeMat);
+    e2.position.copy(m2.position); e2.rotation.y = rot; groups.peak.add(e2);
+  });
+}
+
+function crenellateEdge(u1, v1, u2, v2, topY, opts){
+  opts = opts||{};
+  const mW=opts.mW||1.1, gap=opts.gap||1.0, mH=opts.mH||1.3, mD=opts.mD||0.9;
+  const du=u2-u1, dv=v2-v1, len=Math.hypot(du,dv);
+  if (len < 0.5) return;
+  const ang = Math.atan2(dv,du);
+  const period = mW+gap, n = Math.max(1, Math.floor(len/period));
+  const usedLen = n*period, startOff = (len-usedLen)/2 + mW/2;
+  for (let i=0;i<n;i++){
+    const t = (startOff + i*period)/len;
+    const uu = u1+du*t, vv = v1+dv*t;
+    const geo = new THREE.BoxGeometry(mW, mH, mD);
+    const mesh = new THREE.Mesh(geo, stoneMaterial('peak', mW, mH)); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -ang; groups.peak.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
+    edges.position.copy(mesh.position); edges.rotation.y = -ang; groups.peak.add(edges);
+  }
+}
+function crenellatePolyline(pts, topYFn, opts){
+  for (let i=0;i<pts.length-1;i++){
+    const [u1,v1]=pts[i], [u2,v2]=pts[i+1];
+    crenellateEdge(u1,v1,u2,v2, topYFn((u1+u2)/2,(v1+v2)/2), opts);
+  }
+}
+/* A parapet walked as ONE continuous loop around the perimeter, so merlons are
+   evenly spaced and corners never receive two overlapping blocks — which is what
+   made the gate-tower head read as a jumble when each edge was crenellated
+   independently. A low solid band under the merlons ties them together. */
+function parapetRect(state, u, v, su, sv, topY, rot, opts){
+  opts = opts || {}; rot = rot || 0;
+  const mW=opts.mW||1.05, gap=opts.gap||0.95, mH=opts.mH||1.35, mD=opts.mD||0.85;
+  const bandH = opts.bandH==null ? 0.45 : opts.bandH;
+  const hw=su/2, hd=sv/2;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const rp=(x,z)=>[u + x*c - z*s, v + x*s + z*c];
+  const corners=[[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([x,z])=>rp(x,z));
+  const mat = stoneMaterial(state), edgeMat = state==='peak'?edgePeak:edgeRuin;
+
+  // solid band the merlons stand on
+  if (bandH > 0){
+    const g = groups[state];
+    [[su, mD, 0, -hd],[su, mD, 0, hd],[mD, sv, -hw, 0],[mD, sv, hw, 0]].forEach(([bw,bd,ox,oz])=>{
+      const geo = new THREE.BoxGeometry(bw, bandH, bd);
+      const [wu,wv] = rp(ox,oz);
+      const m = new THREE.Mesh(geo, mat); m.castShadow=m.receiveShadow=true;
+      m.position.set(wu, topY+bandH/2, wv); m.rotation.y = rot; g.add(m);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), edgeMat);
+      ed.position.copy(m.position); ed.rotation.y = rot; g.add(ed);
+    });
+  }
+  const base = topY + bandH;
+
+  const segs=[];
+  for(let i=0;i<4;i++){
+    const a=corners[i], b=corners[(i+1)%4];
+    segs.push({a,b,len:Math.hypot(b[0]-a[0], b[1]-a[1])});
+  }
+  const perim = segs.reduce((t,x)=>t+x.len, 0);
+  const n = Math.max(4, Math.round(perim/(mW+gap)));
+  const step = perim/n;
+  const w = Math.min(mW, step*0.60);
+  for(let i=0;i<n;i++){
+    let d=(i+0.5)*step, k=0;
+    while(k<3 && d>segs[k].len){ d-=segs[k].len; k++; }
+    const sg=segs[k], t=Math.min(1, d/sg.len);
+    const wu = sg.a[0] + (sg.b[0]-sg.a[0])*t;
+    const wv = sg.a[1] + (sg.b[1]-sg.a[1])*t;
+    const ang = Math.atan2(sg.b[1]-sg.a[1], sg.b[0]-sg.a[0]);
+    const geo = new THREE.BoxGeometry(w, mH, mD);
+    const m = new THREE.Mesh(geo, mat); m.castShadow=m.receiveShadow=true;
+    m.position.set(wu, base+mH/2, wv); m.rotation.y = -ang;
+    groups[state].add(m);
+    const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), edgeMat);
+    ed.position.copy(m.position); ed.rotation.y = -ang; groups[state].add(ed);
+  }
+}
+
+function crenellateRect(u, v, su, sv, topY, skip, rot, opts){
+  skip = skip||{}; rot = rot||0;
+  const hw=su/2, hd=sv/2;
+  const raw = { north:[-hw,-hd,hw,-hd], south:[-hw,hd,hw,hd], west:[-hw,-hd,-hw,hd], east:[hw,-hd,hw,hd] };
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const rp = (x,z) => [u + x*c - z*s, v + x*s + z*c];
+  Object.keys(raw).forEach(k=>{
+    if (skip[k]) return;
+    const [x1,z1,x2,z2] = raw[k];
+    const [u1,v1]=rp(x1,z1), [u2,v2]=rp(x2,z2);
+    crenellateEdge(u1,v1,u2,v2, topY, opts);
+  });
+}
+function crenellateRing(u, v, r, topY, count){
+  count = count||16;
+  const mW = (2*Math.PI*r/count)*0.85, mD=0.8, mH=1.2;
+  for (let i=0;i<count;i+=2){
+    const amid = ((i+0.5)/count)*Math.PI*2;
+    const uu = u+Math.cos(amid)*r, vv = v+Math.sin(amid)*r;
+    const geo = new THREE.BoxGeometry(mW, mH, mD);
+    const mesh = new THREE.Mesh(geo, stoneMaterial('peak', mW, mH)); mesh.castShadow = mesh.receiveShadow = true;
+    mesh.position.set(uu, topY+mH/2, vv); mesh.rotation.y = -(amid+Math.PI/2); groups.peak.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 22), edgePeak);
+    edges.position.copy(mesh.position); edges.rotation.y = -(amid+Math.PI/2); groups.peak.add(edges);
+  }
+}
+
+/* ---------- openings: windows, doorway, arrow slits (peak state only) ----------
+   Faked as thin decal planes set just proud of the wall face rather than true
+   boolean cutouts — visually reads as an opening without a CSG library. Arched
+   for domestic openings (consistent with the Gothic-arched fragments recovered
+   in the Great Hall and central range, Ch.9/Ch.20); narrow slits for the keep,
+   consistent with its defensive character. */
+function makeOpeningTexture(kind){
+  const cw=96, ch=160;
+  const canvas=document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,cw,ch);
+  const grad = ctx.createLinearGradient(0,0,0,ch);
+  grad.addColorStop(0,'rgba(18,14,10,0.97)'); grad.addColorStop(1,'rgba(30,24,17,0.9)');
+  ctx.fillStyle = grad;
+  if (kind==='slit'){
+    const w=cw*0.16, x=(cw-w)/2, r=w/2, topY=ch*0.22;
+    ctx.beginPath(); ctx.moveTo(x,ch); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch); ctx.closePath(); ctx.fill();
+  } else if (kind==='door'){
+    const w=cw*0.62, x=(cw-w)/2, r=w/2, topY=ch*0.1;
+    ctx.beginPath(); ctx.moveTo(x,ch); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch); ctx.closePath(); ctx.fill();
+  } else {
+    const w=cw*0.46, x=(cw-w)/2, r=w/2, topY=ch*0.12;
+    ctx.beginPath(); ctx.moveTo(x,ch*0.96); ctx.lineTo(x,topY+r); ctx.arc(x+r,topY+r,r,Math.PI,0,false); ctx.lineTo(x+w,ch*0.96); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(70,58,40,0.7)'; ctx.lineWidth=3; ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+const openingTex = { arch: makeOpeningTexture('arch'), slit: makeOpeningTexture('slit'), door: makeOpeningTexture('door') };
+function addOpening(u, v, su, sv, rot, side, uOffset, y, w, h, kind){
+  // side: +1 = the building's local +v face, -1 = the -v face; uOffset is distance
+  // along the wall from its centre; y is the sill height above local ground.
+  const hd = sv/2 + 0.06;
+  const lx = uOffset, lz = side*hd;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const wu = u + lx*c - lz*s, wv = v + lx*s + lz*c;
+  const {e,n} = fromFrame(u,v); const base = groundAt(e,n) + CFG.offsetUp;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const mat = new THREE.MeshBasicMaterial({ map: openingTex[kind]||openingTex.arch, transparent:true, alphaTest:0.08, depthWrite:false, side:THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(wu, base + y + h/2, wv);
+  mesh.rotation.y = rot + (side===1 ? 0 : Math.PI);
+  groups.peak.add(mesh);
+}
+// place a symmetric row of openings along a wall's +v (or -v) face
+function openingRow(u, v, su, sv, rot, side, y, w, h, count, kind, margin){
+  margin = margin==null ? Math.max(w*1.6, 2.2) : margin;
+  const span = su - margin*2;
+  for (let i=0;i<count;i++){
+    const t = count===1 ? 0.5 : i/(count-1);
+    addOpening(u, v, su, sv, rot, side, -span/2 + span*t, y, w, h, kind);
+  }
+}
+
+function placeBuildings(){
+  ['peak','ruin'].forEach(k=>{ const g=groups[k]; while(g.children.length) g.remove(g.children[0]); });
+  const b = (90-CFG.axisBearing)*DEG;
+  [groups.peak, groups.ruin].forEach(g=>{ g.position.set(CFG.offsetE, 0, -CFG.offsetN); g.rotation.y = b; });
+
+  /* Frame layout (metres along the axis; keep at +u, western wing at -u):
+     keep 32.5..57.5 (25 x 20 m; Ch.9), inner moat 58..78, berm, outer moat 85..95,
+     central range -13.5..32.5 (46 x 14 m; two rows of six groin vaults),
+     western wing -36.5..-13.5 (23 x 16 m; >30 m tall; Ch.20),
+     small western vault -47.5..-36.5. Outer enceinte lower on both flanks. */
+
+  // KEEP — rectangle + apsidal (D-shaped) east end
+  const keepBase = pinTo(40, 0, 25, 20);
+  box('peak', 40, 0, 15, 20, 24);
+  cylinder('peak', 47.5, 0, 10, 24, 20);
+  talusSkirt('peak', 40, 0, 15, 20, 0.16, 5);          // "a steep talus" at the base (Ch.9)
+  talusSkirt('ruin', 40, 0, 15, 20, 0.16, 3.2);
+  // ruin: "above the cistern only two fragments of the inner faces are standing" (Ch.4)
+  box('ruin', 40, 0, 15, 20, 2.2, 0.9);
+  cylinder('ruin', 47.5, 0, 10, 2.2, 20, 0.9);
+  box('ruin', 35.5, -3.5, 1.4, 6, 7.5, 0.5);
+  box('ruin', 39, 5.5, 5, 1.4, 6, 0.5);
+  unpin();
+
+  // CENTRAL / DOMESTIC RANGE — 6 free-standing piers, 12 bays, 2 storeys (Ch.4, Ch.8)
+  // Core set back, then real pierced faces on the three walls we have evidence for.
+  const rangeBase = pinTo(9.75, 0.4, 48.1, 15.4);
+  // No solid core: the range is built from its four wall faces, so every opening
+  // looks into the (dark) interior rather than onto a solid block behind.
+  box('peak', 32.6, 0.4, 2.4, 15.6, 17);          // east end wall, onto the vestibule (spans both long walls)
+  // South wall: "large windows in some, perhaps all of the bays" between the
+  // pilasters (Ch.8) — six bays on this side, plus the upper apartment storey.
+  (function(){
+    const win = [];
+    for (let i=0;i<6;i++){
+      const x = -18.5 + i*7.4;
+      win.push({ x, y:3.2, w:2.1, h:3.4, kind:'arch' });   // ground-floor bay windows
+      win.push({ x, y:10.6, w:1.6, h:2.8, kind:'arch' });  // upper domestic apartments
+    }
+    wallPanel('peak', 9.5, 7.0, 46, 2.2, 17, win, 0);
+  })();
+  // North wall: a door near the west end leading out toward the gate tower (Plate 8.6),
+  // with arrow embrasures from the upper storey above (Plate 8.11). The upper storey
+  // was domestic, so it carried real windows too — these are what read as large dark
+  // openings in the standing wall today.
+  wallPanel('peak', 9.5, -6.0, 46, 2.6, 17, [
+    { x:-18.0, y:0,    w:1.5, h:2.6, kind:'arch' },
+    { x:-18.5, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
+    { x:-11.1, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
+    { x:-3.7, y:3.4, w:1.9, h:2.6, kind:'rect', glass:true },
+    { x: 3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x: 11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x: 18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
+    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:-7.4, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x: 0,    y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x:-11.1, y:14.4, w:0.5, h:2.0, kind:'slit' },
+    { x: 3.7,  y:14.4, w:0.5, h:2.0, kind:'slit' },
+    { x: 18.5, y:14.4, w:0.5, h:2.0, kind:'slit' }
+  ], 0);
+  // West wall of the enclosure: two windows and a door (later blocked) with the
+  // in-situ triangular bases of two arrow slits above them (Plates 8.4, 8.5).
+  wallPanel('peak', -13.2, 0.4, 15.6, 2.2, 17, [
+    { x:0,    y:0,   w:1.6, h:2.8, kind:'arch' },
+    { x:-3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
+    { x:3.4, y:4.6, w:1.8, h:2.2, kind:'rect', glass:true },
+    { x:-2.2, y:8.6, w:0.4, h:1.9, kind:'slit' },
+    { x:2.2,  y:8.6, w:0.4, h:1.9, kind:'slit' }
+  ], Math.PI/2);
+  box('ruin', 9.5, -5.7, 46, 2.4, 1.5, 0.9);     // north wall, "hardly surviving above bedrock" (Ch.4)
+  box('ruin', 9.5, 6.3, 46, 2.0, 2.3, 0.9);      // south wall, little more than a footing
+  box('ruin', -13, 0.5, 2.0, 12, 2.4, 0.8);      // west dividing wall W(A)2
+  garderobe('peak', -10.5, 8.2, 1, 0, rangeBase + 9.5, 6.5);  // second chute, east of the first (Ch.9)
+  for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
+  unpin();
+
+  // WESTERN WING — cellars, Great Hall, apartments; south support wall ~11-12 m
+  const wingBase = pinTo(-25.05, -0.3, 24.5, 16.6);
+  // built as faces, not a solid mass — see the central range above
+  box('peak', -13.9, -0.3, 2.2, 16.8, 32);        // east end wall, against chamber L (spans both long walls)
+  /* The basement is "two huge parallel barrel vaults" (Ch.8) — chambers K and L,
+     which the plan shows running ACROSS the castle, so their arched ends open on
+     the north face. That pair of arches is the most recognisable thing about the
+     standing ruin. The south side is the opposite: a blank massive support wall
+     built against the rock, rising c. 11 m (Ch.8), so no openings low down there. */
+  const vaultArch = [
+    { x:-5.6, y:0, w:7.5, h:7.0, kind:'arch' },
+    { x: 5.6, y:0, w:7.5, h:7.0, kind:'arch' }
+  ];
+  // north face, peak: vault ends below, Great Hall windows, apartments above
+  wallPanel('peak', -25, -7.4, 23, 2.4, 32, vaultArch.concat([
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true }
+  ]), 0);
+  // south face, peak: blank support wall below, hall and apartments lit above
+  wallPanel('peak', -25, 6.9, 23, 2.2, 32, [
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true }
+  ], 0);
+  // west end wall, peak — the wing's gable end also had to be lit
+  wallPanel('peak', -36.2, -0.3, 16.8, 2.2, 32, [
+    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'gothic', glass:true },
+    { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
+    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'gothic', glass:true },
+    { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
+    { x: 0,   y:5.0,  w:0.45, h:2.0, kind:'slit' }
+  ], Math.PI/2);
+  // ruin: the two vaults are the one part of the west range still standing (Ch.4)
+  box('ruin', -25, 0.8, 23, 11.0, 7.2, 0.35);                    // vault body, set back
+  /* In the photograph the west range still stands well above the vault mouths:
+     the north wall survives to roughly Great Hall level, pierced by large
+     arched openings, with a ragged crown. That upstanding wall is the single
+     most recognisable thing about the ruin and was missing here. */
+  /* In the photograph only the EASTERN half of the west range still stands
+     high — the tall block with its arched openings. The western half is reduced
+     to bare rock and low rubble, so a wall running the full 23 m is wrong. */
+  wallPanel('ruin', -19.2, -7.4, 11.6, 2.4, 15.0, [
+    { x:-2.9, y:0,   w:7.0, h:6.8, kind:'arch'   },
+    { x:-2.4, y:9.2, w:3.0, h:4.4, kind:'gothic' },
+    { x: 2.6, y:9.2, w:3.0, h:4.4, kind:'gothic' }
+  ], 0);
+  [-4.2,-0.6,3.4].forEach((x,i)=>
+    box('ruin', -19.2+x, -7.4, 3.0, 2.4, 15.0 + [0.9,1.4,0.5][i], 0.9));
+  // the western half: vault mouth only, then rubble
+  wallPanel('ruin', -30.8, -7.4, 11.4, 2.4, 7.4, [
+    { x:0.6, y:0, w:7.0, h:6.6, kind:'arch' }
+  ], 0);
+  box('ruin', -34.5, 0.5, 5.0, 13.0, 2.2, 0.9);
+  cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
+  unpin();
+
+
+  /* WESTERNMOST STRUCTURE OF THE UPPER WARD — attached to the western side of
+     chamber L, over a rectangular barrel-vaulted cistern measuring 11 by 6 m
+     (Ch.9). The "curved wall on the west" the sources mention belongs to the
+     defences BELOW the main buildings, together with the gate tower (Ch.8) —
+     it is not a ring around this block, and the photographs show none. */
+  box('peak', -42.5, 1, 6, 11, 6.5);
+  box('ruin', -42.5, 1, 6, 11, 2.6, 0.6);
+
+  // WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). The north face
+  // carries the passage arch, an arrow embrasure on the middle floor directly
+  // above it, and a machicolation on the floor above. Opening sizes scaled off
+  // the measured south-face drawing, Plate 9.39.
+  /* WESTERN GATE TOWER (gate E) — three storeys, 17 m (Ch.9). Every part is
+     placed from ONE rotated local frame: spinning each box in place while
+     leaving its centre on an unrotated grid skews the parapet off the walls. */
+  const gU = -46, gV = -13.6, gRot = 0.12, gW = 7, gD = 6.95;   // BLUE: sits high on the rock, not down the slope
+  const gC = Math.cos(gRot), gS = Math.sin(gRot);
+  const gp = (x,z) => [gU + x*gC - z*gS, gV + x*gS + z*gC];   // local -> frame
+  const gWest = gp(-(gW/2 - 0.75), 0), gEast = gp(gW/2 - 0.75, 0);
+  const gSouth = gp(0, gD/2 - 0.7),    gNorth = gp(0, -(gD/2 - 0.25));
+  const gateOpenings = [
+    { x:0, y:0,    w:2.8, h:3.4, kind:'arch' },
+    { x:0, y:6.2,  w:2.4, h:2.6, kind:'arch' },
+    { x:0, y:11.4, w:0.85, h:1.3, kind:'slit' }
+  ];
+  const gateBase = pinTo(gU, gV, gW, gD, gRot);
+  box('peak', gWest[0],  gWest[1],  1.5, gD, 17, 0, gRot);    // west side wall
+  box('peak', gEast[0],  gEast[1],  1.5, gD, 17, 0, gRot);    // east side wall
+  box('peak', gSouth[0], gSouth[1], gW, 1.4, 17, 0, gRot);    // south (inner) wall
+  wallPanel('peak', gNorth[0], gNorth[1], gW, 1.9, 17, gateOpenings, gRot);
+  machicolation('peak', gNorth[0], gNorth[1], 5.4, gateBase + 15.4, gRot, -1);
+  // the ruin keeps the tower nearly to full height — it is the best-preserved gate
+  box('ruin', gWest[0],  gWest[1],  1.5, gD, 15.5, 0.3, gRot);
+  box('ruin', gEast[0],  gEast[1],  1.5, gD, 15.5, 0.3, gRot);
+  box('ruin', gSouth[0], gSouth[1], gW, 1.4, 14.0, 0.4, gRot);
+  wallPanel('ruin', gNorth[0], gNorth[1], gW, 1.9, 15.0, gateOpenings, gRot);
+  unpin();
+
+  // ROUND TOWER on the southern outer enceinte — a broad drum with a strongly
+  // flared talus, built of very large rough blocks; it reads far wider than tall
+  // in the standing remains.
+  /* The semi-circular tower stands on the NORTHERN outer wall close to the gate
+     tower — Ch.5 locates a surviving stretch of curtain "almost 15 m west of the
+     semi-circular tower" on that side, and every photograph shows the broad
+     rough-block drum sitting directly below the gate tower. It had been placed
+     on the southern enceinte. */
+  /* The broad rough-block drum sits immediately below the gate tower, revetting
+     the rock the tower stands on — not out along the enceinte where it was.
+     Widened, because in the photographs it reads far broader than it is tall. */
+  roundTower('peak', -45.5, -20.6, 7.0, 9.6, 6.0, 5.0);
+  roundTower('ruin', -45.5, -20.6, 7.0, 9.6, 5.4, 2.6);
+
+  // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
+  // subdivided until it reads as a true curve following the spur, not a faceted line
+  const outerRaw = [[36,-14],[20,-17],[2,-19],[-18,-20],[-34,-22],[-50,-23],[-60,-13],[-60,2],[-50,15],[-38,20],[-20,21],[-2,19],[16,16],[30,13]];
+  /* GREEN: away from the rounded west end the enceinte runs in straight lengths
+     with squared turns — over-smoothing turned the whole circuit into one soft
+     curve. Light smoothing keeps the corners legible. */
+  const outer = resample(chaikin(outerRaw, 2), 2.0);
+  wallRibbon('peak', outer, 5.5, 1.6, false);
+  wallRibbon('ruin', outer, 5.5, 1.6, true);
+
+  /* The best-preserved stretch of the outer wall: 20.5 m long, 1.3 m thick and
+     9 m high — its original height — pierced by four openings 0.85–0.95 m wide
+     inside and 0.40 m outside, 1.1–1.3 m high, 1.92–2.55 m apart, their sills 7 m
+     above the exterior base (Ch.5). Three corbels above them carried the roof
+     beams of chambers built against the wall. This stretch still stands, so it
+     is modelled in BOTH states. The splay is real: a wide inner panel and a
+     narrow-slotted outer skin. */
+  [['peak',9.0],['ruin',9.0]].forEach(([st,hh])=>{
+    const inner = [], outerSlots = [];
+    const pitch = 3.15;                       // 0.9 m opening + 2.25 m pier
+    for (let i=0;i<4;i++){
+      const x = -1.5*pitch + i*pitch;
+      inner.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' });      // 0.85–0.95 m inside
+      outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' }); // 0.40 m outside
+    }
+    wallPanel(st, -6, -19.4, 20.5, 0.9, hh, inner, -0.025);
+    wallPanel(st, -6, -20.1, 20.5, 0.45, hh, outerSlots, -0.025);
+    // three corbels above the openings on the inner face, for the roof beams of
+    // the chambers that ran against the wall (Ch.5)
+    for (let i=0;i<3;i++){
+      const x = -pitch + i*pitch;
+      const geo = new THREE.BoxGeometry(0.4, 0.4, 0.9);
+      const m = new THREE.Mesh(geo, stoneMaterial(st)); m.castShadow = m.receiveShadow = true;
+      m.position.set(-6 + x, topYOf(-6,-19.4,8.4), -18.7); m.rotation.y = -0.025;
+      groups[st].add(m);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), st==='peak'?edgePeak:edgeRuin);
+      ed.position.copy(m.position); ed.rotation.y = -0.025; groups[st].add(ed);
+    }
+  });
+
+  /* POSTERNS AND SECONDARY GATES. Four or five gates are identifiable besides
+     the tower (Ch.9), and a postern survives at the north-west corner of the
+     outer wall with pale limestone voussoirs over grey limestone lintels
+     (Ch.13). The enceinte had been a blank ring until now. */
+  [['peak',5.5],['ruin',4.2]].forEach(([st,hh])=>{
+    // gate C — two barrel-vaulted storeys on the northern slope
+    wallPanel(st, -30, -22.3, 6.0, 1.8, hh, [{ x:0, y:0, w:2.2, h:3.0, kind:'arch' }], -0.06);
+    // gate D — outer wall near where it turns south, preserved to full height
+    wallPanel(st, -57.5, -6.0, 5.5, 1.8, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], Math.PI/2);
+    // north-west postern
+    wallPanel(st, -52.5, -17.5, 4.5, 1.8, hh, [{ x:0, y:0, w:1.2, h:2.1, kind:'arch' }], -0.5);
+    // southern postern onto the outer ward
+    wallPanel(st,  6.0,  17.6, 4.5, 1.8, hh, [{ x:0, y:0, w:1.2, h:2.1, kind:'arch' }], 0.1);
+  });
+  machicolation('peak', -30, -22.3, 4.2, topYOf(-30,-22.3,5.5), -0.06, -1);      // over gate C
+  machicolation('peak', -57.5, -6.0, 4.0, topYOf(-57.5,-6.0,5.5), Math.PI/2, -1); // over gate D
+
+  // ROOFS — pitched, timber-framed, domestic ranges only
+  gableRoof(9.75, 0.4, 48.1, 15.4, 17, 5.4, 0, 0.9, 1.5, rangeBase + 17);   // central range
+  gableRoof(-25.05, -0.3, 24.5, 16.6, 32, 6.9, 0, 0.9, 1.5, wingBase + 32);  // western wing
+
+  // CRENELLATIONS — flat fighting platforms on every defensive element
+  parapetRect('peak', 40, 0, 15, 20, keepBase + 24, 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
+  parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
+  crenellateRing(-45.5, -20.6, 7.0, topYOf(-45.5,-20.6,6.0), 20);             // round tower, above the talus
+  // crenellations only on the peak-state wall; the ruin has lost its parapet
+  if (true) crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});      // outer enceinte
+  crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
+
+  // labels (world anchors)
+  labelDefs = [
+    ['Keep', 45, 0, 26], ['Central range', 9.5, 0.5, 19], ['Western wing · Great Hall', -25, -0.5, 34],
+    ['Gate tower', -46, -17, 19], ['Outer wall', -50, 8, 8], ['Rock-cut moats', 78, 0, 6]
+  ].map(([t,u,v,dy])=>{ const {e,n}=fromFrame(u,v); return { text:t, pos:new THREE.Vector3(e, groundAt(e,n)+CFG.offsetUp+dy, -n) }; });
+
+  /* Detached fragments standing clear of the main lines, as in the aerial views:
+     isolated tower stubs and lengths of the lower enceinte down the slope. */
+  [[-58,26,4.5,4.0,5.5],[10,26,5.0,4.5,4.0],[38,20,4.0,4.0,3.0],
+   [-8,-31,5.5,4.0,4.5],[26,-26,4.5,4.0,3.4]].forEach(([u,v,a,b,hh])=>
+    box('ruin', u, v, a, b, hh, 0.8));
+  wallPanel('ruin', 20, 25.5, 9.0, 1.7, 4.2, [{ x:0, y:0, w:1.6, h:2.4, kind:'arch' }], 0.15);
+  wallPanel('ruin', -20, 27.0, 8.0, 1.7, 3.8, [{ x:0, y:0, w:1.5, h:2.2, kind:'arch' }], -0.1);
+
+  // MILL & GUESTHOUSE — Nahal Kziv valley (Pringle & Leach 1986; Ch.10)
+  placeMill();
+
+  // dark interiors, so every opening shows an unlit room rather than daylight
+  // sized to sit just inside each wall's inner face, so an opening frames dark
+  // interior without the shell poking into the reveal
+  interiorShell('peak', 9.65, 0.6, 43.3, 10.4, 16.6, 0);     // central range
+  interiorShell('peak', -25.05, -0.2, 19.9, 11.8, 31.2, 0);  // western wing
+  interiorShell('peak', gp(0,-0.2)[0], gp(0,-0.2)[1], 3.9, 4.6, 16.4, gRot);  // gate tower
+  interiorShell('ruin', -25, 0.8, 21.5, 10.0, 6.8, 0);       // surviving vaults
+
+  rebuildLabels();
+  setEra(currentEra);
+}
+
+const millGroups = { peak:new THREE.Group(), ruin:new THREE.Group() };
+scene.add(millGroups.peak, millGroups.ruin);
+function placeMill(){
+  ['peak','ruin'].forEach(k=>{ const g=millGroups[k]; while(g.children.length) g.remove(g.children[0]); g.position.set(CFG.millE,0,-CFG.millN); g.rotation.y = (90-70)*DEG; });
+  const base = groundAt(CFG.millE, CFG.millN) + CFG.offsetUp;
+  const mk = (state, x, z, sx, sz, h, jag) => {
+    const geo = new THREE.BoxGeometry(sx, h+FOUND, sz);
+    if (jag){ geo.translate(0,(h+FOUND)/2,0); jagTop(geo, jag, x+z); geo.translate(0,-(h+FOUND)/2,0); }
+    addToGroup(millGroups[state], geo, stoneMaterial(state, Math.max(sx,sz), h), state==='peak'?edgePeak:edgeRuin, x, base+(h-FOUND)/2, z);
+  };
+  mk('peak', 0, 0, 20, 9, 9);          // two-storey mill + hall
+  mk('peak', -13, -0.5, 7, 7, 13);     // west appendage, originally three storeys
+  mk('ruin', 0, 0, 20, 9, 4.5, 0.5);   // ground-floor vault intact
+  mk('ruin', 7, 0, 5, 9, 8.5, 0.4);    // one bay of the upper hall still standing
+  mk('ruin', -13, -0.5, 7, 7, 2.5, 0.6); // tower collapsed 1940-42
+  labelDefs.push({ text:'Mill & guesthouse', pos:new THREE.Vector3(CFG.millE, base+11, -CFG.millN) });
+}
+
+/* ---------- labels ---------- */
+const labelLayer = document.getElementById('labels');
+function rebuildLabels(){
+  labelLayer.innerHTML = ''; labelEls = labelDefs.map(d=>{ const el=document.createElement('div'); el.className='tag'; el.textContent=d.text; labelLayer.appendChild(el); return {el, pos:d.pos}; });
+}
+const LABEL_LEAD = 38;   // px the tag floats above its anchor; matches the CSS leader
+function updateLabels(){
+  const w=innerWidth, h=innerHeight;
+  labelEls.forEach(l=>{
+    if (!showLabels){ l.el.style.display='none'; return; }
+    const v = l.pos.clone().project(camera);
+    const behind = v.z > 1;
+    const dist = camera.position.distanceTo(l.pos);
+    const x = (v.x*0.5+0.5)*w, y = (-v.y*0.5+0.5)*h;
+    const off = behind || dist > 1100 || x < -80 || x > w+80 || y < -40 || y > h+120;
+    l.el.style.display = off ? 'none' : 'block';
+    if (off) return;
+    l.el.style.left = x+'px';
+    l.el.style.top  = (y - LABEL_LEAD)+'px';
+  });
+}
+
+/* ---------- camera: orbit + zoom ---------- */
+const target = new THREE.Vector3(0, 8, 0);
+let radius = 330, theta = 2.35, phi = 1.02;
+const HOME = { radius:330, theta:2.35, phi:1.02, ty:8 };
+function resetView(){
+  radius = HOME.radius; theta = HOME.theta; phi = HOME.phi;
+  target.set(0, HOME.ty, 0);
+  setVertMode(false);
+  updateCamera();
+}
+const R_MIN = 40, R_MAX = 3000, PHI_MIN = 0.3, PHI_MAX = 1.5;
+function updateCamera(){
+  camera.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+  const needle = document.getElementById('needle');
+  if (needle) needle.setAttribute('transform', `rotate(${theta*180/Math.PI} 27 27)`);
+}
+let dragging=false, panning=false, lx=0, ly=0, pinch=null, pinchMid=null;
+function panBy(dxPx, dyPx){
+  // move the orbit target in the camera's own screen plane, scaled by distance
+  const k = radius * 0.0016;
+  const right = new THREE.Vector3(Math.cos(theta), 0, -Math.sin(theta));
+  const upAmt = dyPx * k;
+  target.addScaledVector(right, -dxPx * k);
+  target.y += upAmt;
+  target.y = Math.max(-120, Math.min(400, target.y));
+  updateCamera();
+}
+view.addEventListener('contextmenu', e=>e.preventDefault());
+view.addEventListener('pointerdown', e=>{
+  dragging = true; panning = (vertMode || e.button === 2 || e.button === 1 || e.shiftKey);
+  lx=e.clientX; ly=e.clientY; view.classList.add('drag'); hint.style.opacity='0';
+});
+addEventListener('pointerup', ()=>{ dragging=false; panning=false; view.classList.remove('drag'); });
+addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx = e.clientX-lx, dy = e.clientY-ly;
+  lx=e.clientX; ly=e.clientY;
+  if (panning){ panBy(vertMode ? 0 : dx, dy); return; }
+  theta -= dx*0.0055;
+  phi = Math.min(PHI_MAX, Math.max(PHI_MIN, phi-dy*0.0045));
+  updateCamera();
+});
+// Space TOGGLES an up/down move mode, Google Earth style: while it is on,
+// dragging raises and lowers the view instead of orbiting it.
+let vertMode = false;
+function setVertMode(on){
+  vertMode = on;
+  view.classList.toggle('vert', on);
+  const b = document.getElementById('vert-badge');
+  if (b) b.style.opacity = on ? '1' : '0';
+}
+addEventListener('keydown', e=>{
+  const step = 40;
+  if (e.code === 'Space'){ setVertMode(!vertMode); e.preventDefault(); return; }
+  if (e.key === 'Escape' && vertMode){ setVertMode(false); return; }
+  if (e.key==='ArrowUp'   || e.key==='PageUp')   { panBy(0,  step); e.preventDefault(); }
+  if (e.key==='ArrowDown' || e.key==='PageDown') { panBy(0, -step); e.preventDefault(); }
+});
+view.addEventListener('wheel', e=>{ e.preventDefault(); radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+e.deltaY*0.0012))); updateCamera(); }, {passive:false});
+view.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    const [a,b] = [e.touches[0], e.touches[1]];
+    const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+    const mid = { x:(a.clientX+b.clientX)/2, y:(a.clientY+b.clientY)/2 };
+    if(pinch!==null){
+      radius = Math.min(R_MAX, Math.max(R_MIN, radius*(1+(pinch-d)*0.004)));
+      if (pinchMid) panBy(mid.x-pinchMid.x, mid.y-pinchMid.y);   // two-finger drag pans
+      updateCamera();
+    }
+    pinch=d; pinchMid=mid;
+  }
+}, {passive:true});
+view.addEventListener('touchend', ()=>{ pinch=null; pinchMid=null; });
+addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+/* ---------- timeline ---------- */
+/* ---------- period switch ---------- */
+let currentEra = 0;
+function setEra(i){
+  currentEra = i;
+  groups.peak.visible = millGroups.peak.visible = (i===0);
+  groups.ruin.visible = millGroups.ruin.visible = (i===1);
+  const sw = document.getElementById('switch');
+  if (sw) sw.classList.toggle('right', i===1);
+  document.querySelectorAll('.opt').forEach(b=>{
+    const on = +b.dataset.i === i;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  if (typeof applyEnvironment === 'function') applyEnvironment();
+}
+document.querySelectorAll('.opt').forEach(b=>b.addEventListener('click', ()=>setEra(+b.dataset.i)));
+
+/* ---------- layers + calibration ---------- */
+let showImagery = true, showLabels = true;
+const bImg = document.getElementById('b-img'), bLab = document.getElementById('b-lab'), bCal = document.getElementById('b-cal');
+bImg.addEventListener('click', ()=>{ showImagery=!showImagery; bImg.classList.toggle('on', showImagery); buildTerrain(); });
+bLab.addEventListener('click', ()=>{ showLabels=!showLabels; bLab.classList.toggle('on', showLabels); });
+document.getElementById('b-reset').addEventListener('click', resetView);
+bCal.addEventListener('click', ()=>{ const c=document.getElementById('calib'); const on=!c.classList.contains('show'); c.classList.toggle('show', on); bCal.classList.toggle('on', on); document.getElementById('attrib').classList.toggle('hide', on); });
+
+const sliders = [['c-rot','o-rot','axisBearing'],['c-e','o-e','offsetE'],['c-n','o-n','offsetN'],['c-up','o-up','offsetUp'],['c-me','o-me','millE'],['c-mn','o-mn','millN']];
+let rebuildTimer = null;
+sliders.forEach(([id,out,key])=>{
+  const el=document.getElementById(id), o=document.getElementById(out);
+  el.value = CFG[key]; o.value = CFG[key];
+  el.addEventListener('input', ()=>{ CFG[key] = +el.value; o.value = el.value; writeCalib(); clearTimeout(rebuildTimer); rebuildTimer = setTimeout(()=>{ if (key==='axisBearing'||key==='offsetE'||key==='offsetN') buildTerrain(); placeBuildings(); }, 80); });
+});
+function writeCalib(){ document.getElementById('c-out').value = `axisBearing: ${CFG.axisBearing}, offsetE: ${CFG.offsetE}, offsetN: ${CFG.offsetN}, offsetUp: ${CFG.offsetUp},\nmillE: ${CFG.millE}, millN: ${CFG.millN}`; }
+writeCalib();
+
+/* ---------- boot ---------- */
+const statusEl = document.getElementById('status'), hint = document.getElementById('hint');
+async function boot(){
+  try { await loadTerrain(); } catch(err){ console.warn('Terrain tiles unavailable:', err); }
+  if (liveTerrain){
+    elev0 = elevAtLatLon(CFG.lat0, CFG.lon0);
+    try { await loadImagery(); } catch(err){ console.warn('Imagery unavailable:', err); }
+  }
+  buildTerrain();
+  placeBuildings();
+  buildLamps();
+  await loadWeather();
+  applyEnvironment();
+  setInterval(applyEnvironment, 60000);   // keep the light tracking the real sun
+  updateCamera();
+  if (liveTerrain){
+    statusEl.style.opacity = '0'; setTimeout(()=>statusEl.style.display='none', 500);
+    if (!liveImagery){ document.getElementById('attrib').textContent = 'Terrain: Mapzen Terrain Tiles via AWS Open Data (SRTM, NASA/JPL) · imagery unavailable'; }
+  } else {
+    statusEl.innerHTML = 'Live terrain and imagery could not load here.<small>Showing plan-derived terrain instead. Host this file on the web (for example GitHub Pages) and it loads the real geography of the spur.</small>';
+    document.getElementById('attrib').textContent = 'Terrain: plan-derived approximation (no live data)';
+    setTimeout(()=>{ statusEl.style.opacity='0'; setTimeout(()=>statusEl.style.display='none',500); }, 9000);
+  }
+  setTimeout(()=>hint.style.opacity='1', 800); setTimeout(()=>hint.style.opacity='0', 6000);
+}
+function animate(){ requestAnimationFrame(animate); updateLabels(); renderer.render(scene, camera); }
+updateCamera(); animate(); boot();
+</script>
+</body>
+</html>
