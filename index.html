@@ -681,7 +681,8 @@ function wallRibbon(state, pts, h, thick, ruinPattern, sink){
   const hs = [], nor = [];
   for (let i=0;i<N;i++){
     const t = i/(N-1);
-    if (!ruinPattern) hs.push(h);
+    if (typeof ruinPattern === 'function') hs.push(ruinPattern(t,i));
+    else if (!ruinPattern) hs.push(h);
     else {
       /* In the aerial views the ruined enceinte is not a continuous low wall:
          it survives as separated stretches, some still near full height, with
@@ -1221,8 +1222,8 @@ function placeBuildings(){
     const win = [];
     for (let i=0;i<6;i++){
       const x = -18.5 + i*7.4;
-      win.push({ x, y:3.2, w:2.1, h:3.4, kind:'arch' });   // ground-floor bay windows
-      win.push({ x, y:10.6, w:1.6, h:2.8, kind:'arch' });  // upper domestic apartments
+      win.push({ x, y:3.2, w:2.1, h:3.4, kind:'gothic', glass:true });   // ground-floor bay windows
+      win.push({ x, y:10.6, w:1.6, h:2.8, kind:'gothic', glass:true });  // upper domestic apartments
     }
     wallPanel('peak', 9.5, 7.0, 46, 2.2, 17, win, 0);
   })();
@@ -1240,9 +1241,9 @@ function placeBuildings(){
     { x: 18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
     { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
     { x:-7.4, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
-    { x: 0,    y:10.4, w:1.7, h:3.0, kind:'arch' },
-    { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
-    { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
+    { x: 0,    y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
     { x:-11.1, y:14.4, w:0.5, h:2.0, kind:'slit' },
     { x: 3.7,  y:14.4, w:0.5, h:2.0, kind:'slit' },
     { x: 18.5, y:14.4, w:0.5, h:2.0, kind:'slit' }
@@ -1297,9 +1298,9 @@ function placeBuildings(){
   // west end wall, peak — the wing's gable end also had to be lit
   wallPanel('peak', -36.2, -0.3, 16.8, 2.2, 32, [
     { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'gothic', glass:true },
-    { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
+    { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'gothic', glass:true },
     { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'gothic', glass:true },
-    { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
+    { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'gothic', glass:true },
     { x: 0,   y:5.0,  w:0.45, h:2.0, kind:'slit' }
   ], Math.PI/2);
   // ruin: the two vaults are the one part of the west range still standing (Ch.4)
@@ -1365,120 +1366,232 @@ function placeBuildings(){
   wallPanel('ruin', gNorth[0], gNorth[1], gW, 1.9, 15.0, gateOpenings, gRot);
   unpin();
 
-  // ROUND TOWER on the southern outer enceinte — a broad drum with a strongly
-  // flared talus, built of very large rough blocks; it reads far wider than tall
-  // in the standing remains.
-  /* The semi-circular tower stands on the NORTHERN outer wall close to the gate
-     tower — Ch.5 locates a surviving stretch of curtain "almost 15 m west of the
-     semi-circular tower" on that side, and every photograph shows the broad
-     rough-block drum sitting directly below the gate tower. It had been placed
-     on the southern enceinte. */
-  /* The broad rough-block drum sits immediately below the gate tower, revetting
-     the rock the tower stands on — not out along the enceinte where it was.
-     Widened, because in the photographs it reads far broader than it is tall. */
+  // REVETMENT DRUM below the gate tower — the broad rough-block drum that every
+  // photograph shows directly under gate tower E, revetting the rock it stands on.
   roundTower('peak', -45.5, -20.6, 7.0, 9.6, 6.0, 5.0);
   roundTower('ruin', -45.5, -20.6, 7.0, 9.6, 5.4, 2.6);
 
-  /* OUTER BAILEY (Vorburg) — rebuilt from Biller's site plan, whose outer-works
-     portion is explicitly captioned as following "der vermessenen Darstellung
-     von Frenkel/Gatzov 1986" (the surveyed depiction of Frenkel & Gatzov, 1986),
-     cross-checked against Biller's own reconstruction model of the site. Both
-     agree: a compact, straight-sided polygonal ward directly below and west of
-     the gate tower, descending the slope there, with ONE round tower at its
-     exposed downhill corner — not a wall running far down the north slope in a
-     separate ring, which earlier versions of this model wrongly built from a
-     misreading of Ch.1/Ch.8 against an ambiguous plan crop. This is a shape and
-     position correction; exact metre dimensions are not recoverable from a
-     photograph of the source plan at the resolution available, so the polygon
-     below is sized plausibly against the gate tower rather than measured. */
-  const baileyRaw = [[-49,-18],[-68,-22],[-85,-15],[-92,0],[-85,15],[-67,20],[-51,15],[-46,-9]];
-  const bailey = resample(chaikin(baileyRaw, 3), 2.0);
-  wallRibbon('peak', bailey, 4.4, 1.4, false);
-  wallRibbon('ruin', bailey, 4.4, 1.4, true);
-  crenellatePolyline(bailey, (u,v)=>topYOf(u,v,4.4), {mD:1.2});
+  /* ================================================================
+     OUTER WORKS — traced from Biller's site plan (Plate 5.26, after Biller
+     2015; outer works after the Frenkel/Gatzov 1986 survey), digital cleanup
+     supplied by the user, north up, 100 m scale bar.
 
-  // the round tower at its downhill corner — the one feature both sources agree on
-  roundTower('peak', -89, -1, 5.4, 7.6, 4.6, 4.4);
-  roundTower('ruin', -89, -1, 5.4, 7.6, 4.0, 1.8);
-  crenellateRing(-89, -1, 5.4, topYOf(-89,-1,4.6), 16);
+     Method (plan open, measure, then code): every point below is a PIXEL
+     coordinate read off that image and converted by plan(). The pixel→frame
+     mapping is anchored on the core: west end of the curved wall ↔ u −50,
+     tip of the keep apse ↔ u +60, so the outer works stay in proportion to
+     the calibrated core. This gives 8.55 px/m; the printed scale bar reads
+     7.66 px/m (core would then be 123 m long). Change PLAN.pxPerM if the
+     satellite drape shows the enceinte over/under-sized.
 
-  // main gate into the bailey, near the gate tower
-  [['peak',4.4],['ruin',3.2]].forEach(([st,hh])=>{
-    wallPanel(st, -50, -19, 5.0, 1.6, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], -0.9);
-  });
+     Topology (matches Pringle 1998 Plate 5.24 and Brill Ch.1/Ch.8): ONE large
+     outer ward north of the buildings. From the keep's NE corner a wall runs
+     ~50 m down the north slope to a square gate tower at the NE corner; a
+     round tower ~20 m west of it; the north curtain runs west ~130 m (its
+     middle is lost); a square tower at the NW corner; the west wall turns
+     south across the axis, past a small turret, to a second round tower at
+     the SW corner. No wall on the south side. An inner north curtain runs
+     just below the buildings from the gate tower to the keep. A curved wall
+     closes ward O around the west end, from the gate tower round to the
+     south face of the western wing.
+     ================================================================ */
+  const PLAN = { ox:1007, oy:890, u0:5, ax:0.951, ay:0.308, pxPerM:8.55 };
+  const plan = (px,py) => { const dx=px-PLAN.ox, dy=py-PLAN.oy;
+    return [ PLAN.u0 + (dx*PLAN.ax + dy*PLAN.ay)/PLAN.pxPerM, (-dx*PLAN.ay + dy*PLAN.ax)/PLAN.pxPerM ]; };
+  const densify = (pts, step) => { const out=[pts[0]];
+    for (let i=1;i<pts.length;i++){ const [x1,y1]=pts[i-1],[x2,y2]=pts[i]; const L=Math.hypot(x2-x1,y2-y1), n=Math.max(1,Math.ceil(L/step));
+      for (let k=1;k<=n;k++) out.push([x1+(x2-x1)*k/n, y1+(y2-y1)*k/n]); } return out; };
+  const segAngle = (a,b) => Math.atan2(b[1]-a[1], b[0]-a[0]);
 
-  /* The best-preserved stretch of curtain wall: 20.5 m long, 1.3 m thick, 9 m
-     high — its original height — pierced by four openings 0.85–0.95 m wide
-     inside and 0.40 m outside (a real splay), 1.1–1.3 m high, 1.92–2.55 m apart,
-     sills 7 m above the exterior base (Ch.5), with three roof-beam corbels above.
-     Set on the bailey's west face, the side most exposed and most likely to
-     preserve a long uninterrupted run. Modelled in both states, since it still
-     stands. */
-  [['peak',9.0],['ruin',9.0]].forEach(([st,hh])=>{
-    const innerSlots = [], outerSlots = [];
-    const pitch = 3.15;
-    for (let i=0;i<4;i++){
-      const x = -1.5*pitch + i*pitch;
-      innerSlots.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' });
-      outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' });
-    }
-    wallPanel(st, -92, 0, 20.5, 0.9, hh, innerSlots, Math.PI/2 - 0.25);
-    wallPanel(st, -92.7, 0, 20.5, 0.45, hh, outerSlots, Math.PI/2 - 0.25);
-    for (let i=0;i<3;i++){
-      const x = -pitch + i*pitch;
-      const geo = new THREE.BoxGeometry(0.4, 0.4, 0.9);
-      const c=Math.cos(Math.PI/2-0.25), s=Math.sin(Math.PI/2-0.25);
-      const m = new THREE.Mesh(geo, stoneMaterial(st)); m.castShadow = m.receiveShadow = true;
-      m.position.set(-92 + x*c, topYOf(-92,0,8.4), -(x*s)); m.rotation.y = Math.PI/2-0.25;
-      groups[st].add(m);
-      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), st==='peak'?edgePeak:edgeRuin);
-      ed.position.copy(m.position); ed.rotation.y = Math.PI/2-0.25; groups[st].add(ed);
-    }
-  });
+  const WALL_H = 9.0, WALL_T = 1.3;            // preserved stretch: 9 m = original height, 1.3 m thick (Ch.5)
+  const INNER_H = 5.5, CURVE_H = 8.0;
+
+  // plan points (image pixels) → frame
+  const P = {
+    keepNE:   plan(1480,900),  eWall1: plan(1485,760),  eWall2: plan(1510,650),  eWall3: plan(1530,500),
+    neGate:   plan(1540,452),  neGateW: plan(1495,425), neTower: plan(1340,375),
+    nWallA:   plan(1150,330),  nWallB: plan(1050,318),  nWallC: plan(740,315),   nWallD: plan(370,315),
+    nwTower:  plan(352,360),   nw1: plan(300,330),      nw2: plan(245,360),      nw3: plan(195,420),
+    w1: plan(190,480), w2: plan(175,600), turret: plan(150,672), w3: plan(160,700), w4: plan(180,830), w5: plan(195,905),
+    swTower:  plan(205,935),   sStub: plan(300,935),
+    sq: plan(1583,897),
+    inA: plan(900,700), inB: plan(1040,750), inC: plan(1180,825), inD: plan(1340,860),
+    stableA: plan(1230,830), stableB: plan(1340,860)
+  };
+
+  // ruin survival along a standing stretch: mostly low, a few taller stubs, real gaps
+  const ruinFn = (hFull, seed, gapBias) => (t,i) => {
+    const w = 0.5 + 0.5*Math.sin(t*11.0+seed)*Math.cos(t*4.3+seed*0.7);
+    const gap = Math.sin(t*7.9+seed*1.3)*Math.cos(t*19.0+seed);
+    return gap < (gapBias==null ? -0.55 : gapBias) ? -6 : hFull*(0.35+0.65*w);
+  };
+  const curtain = (pts, hPeak, hRuin, opts) => {
+    opts = opts||{};
+    const d = densify(pts, 2.5);
+    wallRibbon('peak', d, hPeak, opts.thick||WALL_T, false);
+    if (opts.lost) { wallRibbon('ruin', d, 0.7, (opts.thick||WALL_T)*1.2, ruinFn(0.7, opts.seed||1, -0.2)); }
+    else wallRibbon('ruin', d, hRuin, opts.thick||WALL_T, ruinFn(hRuin, opts.seed||1, opts.gapBias));
+    if (!opts.noCren) crenellatePolyline(d, (u,v)=>topYOf(u,v,hPeak), {mD:1.1, mW:1.0, gap:0.9, mH:1.2});
+  };
+
+  // --- east wall: keep NE corner down the slope to the NE gate tower ---
+  curtain([P.keepNE, P.eWall1], WALL_H, 0.7, {lost:true, seed:3});               // dashed on the plan: lost
+  curtain([P.eWall1, P.eWall2, P.eWall3], WALL_H, 5.5, {seed:4});
+
+  // --- NE gate tower (Pringle marks a gate here; square on Biller's plan) ---
+  (function(){
+    const rot = -segAngle(P.neGateW, P.neTower);              // squared to the north curtain
+    const [gu,gv] = P.neGate, w = 9.5, dpt = 10.5, h = 13;
+    const c=Math.cos(rot), s=Math.sin(rot);
+    const lp = (x,z)=>[gu + x*c - z*s, gv + x*s + z*c];
+    const base = pinTo(gu, gv, w, dpt, rot);
+    const nf = lp(0, -(dpt/2-0.8)), sf = lp(0, dpt/2-0.8), wf = lp(-(w/2-0.8),0), ef = lp(w/2-0.8,0);
+    const gate = [{ x:0, y:0, w:2.8, h:3.6, kind:'arch' }, { x:0, y:7.2, w:0.85, h:1.3, kind:'slit' }];
+    wallPanel('peak', nf[0], nf[1], w, 1.6, h, gate, rot);
+    wallPanel('peak', sf[0], sf[1], w, 1.6, h, [{ x:0, y:0, w:2.8, h:3.6, kind:'arch' }], rot);
+    box('peak', wf[0], wf[1], 1.6, dpt, h, 0, rot); box('peak', ef[0], ef[1], 1.6, dpt, h, 0, rot);
+    machicolation('peak', nf[0], nf[1], 4.8, base + h - 1.6, rot, -1);
+    parapetRect('peak', gu, gv, w, dpt, base + h, rot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});
+    interiorShell('peak', gu, gv, w-3.2, dpt-3.2, h-0.6, rot);
+    wallPanel('ruin', nf[0], nf[1], w, 1.6, 4.6, [{ x:0, y:0, w:2.8, h:3.2, kind:'arch' }], rot);
+    box('ruin', wf[0], wf[1], 1.6, dpt, 3.8, 0.6, rot); box('ruin', ef[0], ef[1], 1.6, dpt, 3.0, 0.6, rot);
+    box('ruin', sf[0], sf[1], w, 1.6, 2.2, 0.6, rot);
+    unpin();
+  })();
+
+  // --- north curtain, east part: gate tower → round tower → preserved stretch ---
+  curtain([P.neGateW, P.neTower], WALL_H, 5.0, {seed:5});
+  // NE round tower — the semi-circular tower on the northern wall (Ch.5)
+  roundTower('peak', P.neTower[0], P.neTower[1], 4.2, 5.6, 4.5, 8.5);
+  roundTower('ruin', P.neTower[0], P.neTower[1], 4.2, 5.6, 4.0, 2.4);
+  crenellateRing(P.neTower[0], P.neTower[1], 4.2, topYOf(P.neTower[0],P.neTower[1],13.0), 14);
+
+  /* Preserved stretch of curtain, "almost 15 m west of the semi-circular tower"
+     (Ch.5): 20.5 m long, 1.3 m thick, 9 m high — its original height — four
+     windows 0.85–0.95 m wide inside, 0.40 m outside (a real splay), 1.1–1.3 m
+     high, 1.92–2.55 m apart, sills 7 m above the exterior base, three corbels
+     above. Stands in both states. */
+  (function(){
+    const ang = segAngle(P.nWallB, P.neTower), rot = -ang;
+    const c=Math.cos(rot), s=Math.sin(rot);
+    const cu = -2.0, cv = P.nWallB[1] + (cu-P.nWallB[0])*Math.tan(ang);
+    const half = 10.25;
+    const endE = [cu + half*c, cv - half*s], endW = [cu - half*c, cv + half*s];
+    curtain([P.neTower, endE], WALL_H, 2.2, {seed:6, gapBias:-0.1});
+    [['peak',9.0],['ruin',9.0]].forEach(([st,hh])=>{
+      const innerSlots = [], outerSlots = [];
+      const pitch = 3.15;
+      for (let i=0;i<4;i++){
+        const x = -1.5*pitch + i*pitch;
+        innerSlots.push({ x, y:6.9, w:0.9, h:1.2, kind:'rect' });
+        outerSlots.push({ x, y:6.9, w:0.40, h:1.2, kind:'rect' });
+      }
+      wallPanel(st, cu, cv, 20.5, 0.9, hh, innerSlots, rot);
+      wallPanel(st, cu - 0.7*s, cv - 0.7*c, 20.5, 0.45, hh, outerSlots, rot);
+      for (let i=0;i<3;i++){
+        const x = -pitch + i*pitch;
+        const geo = new THREE.BoxGeometry(0.4, 0.4, 0.9);
+        const m = new THREE.Mesh(geo, stoneMaterial(st)); m.castShadow = m.receiveShadow = true;
+        m.position.set(cu + x*c, topYOf(cu,cv,8.4), cv - x*s); m.rotation.y = rot;
+        groups[st].add(m);
+        const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo,22), st==='peak'?edgePeak:edgeRuin);
+        ed.position.copy(m.position); ed.rotation.y = rot; groups[st].add(ed);
+      }
+    });
+    crenellatePolyline([endW, endE], (u,v)=>topYOf(u,v,WALL_H), {mD:1.1, mW:1.0, gap:0.9, mH:1.2});
+    // west of the stretch the middle of the north curtain is lost (dashed on every plan)
+    curtain([endW, P.nWallC], WALL_H, 0.7, {lost:true, seed:7});
+  })();
+
+  // --- north curtain, west part, with embrasures marked on the plan; NW corner tower ---
+  curtain([P.nWallC, P.nWallD, P.nw1, P.nw2, P.nw3], WALL_H, 6.0, {seed:8});
+  (function(){
+    const rot = -segAngle(P.nWallD, P.nWallC);
+    const [tu,tv] = P.nwTower;
+    pinTo(tu, tv, 5.5, 10, rot);
+    box('peak', tu, tv, 5.5, 10, 12, 0, rot);
+    parapetRect('peak', tu, tv, 5.5, 10, topYOf(tu,tv,12), rot, {mW:0.9, gap:0.8, mD:0.9, mH:1.2});
+    box('ruin', tu, tv, 5.5, 10, 4.0, 0.8, rot);
+    unpin();
+  })();
+
+  // --- west wall: south across the axis, with a postern near its north end and a small turret ---
+  (function(){
+    // postern (Pringle marks one on this side): a 2 m gap carrying an arched panel
+    const a = P.nw3, b = P.w1, ang = segAngle(a,b), rot = -ang;
+    const L = Math.hypot(b[0]-a[0], b[1]-a[1]), tm = 0.5;
+    const pu = a[0]+(b[0]-a[0])*tm, pv = a[1]+(b[1]-a[1])*tm;
+    const c=Math.cos(rot), s=Math.sin(rot);
+    const g1 = [pu - 1.8*c, pv + 1.8*s], g2 = [pu + 1.8*c, pv - 1.8*s];
+    curtain([a, g1], WALL_H, 4.5, {seed:9});
+    [['peak',WALL_H],['ruin',3.2]].forEach(([st,hh])=>
+      wallPanel(st, pu, pv, 4.2, WALL_T, hh, [{ x:0, y:0, w:1.6, h:2.6, kind:'arch' }], rot));
+    crenellatePolyline([g1,g2], (u,v)=>topYOf(u,v,WALL_H), {mD:1.1, mW:1.0, gap:0.9, mH:1.2});
+    curtain([g2, b, P.w2, P.w3, P.w4, P.w5], WALL_H, 5.0, {seed:10});
+  })();
+  roundTower('peak', P.turret[0], P.turret[1], 2.0, 2.6, 2.0, 8.0, 14);   // small turret on the west wall
+  roundTower('ruin', P.turret[0], P.turret[1], 2.0, 2.6, 2.0, 2.0, 14);
+  // SW round tower at the exposed downhill corner — the tower Biller's model shows
+  roundTower('peak', P.swTower[0], P.swTower[1], 4.2, 5.8, 4.5, 8.5);
+  roundTower('ruin', P.swTower[0], P.swTower[1], 4.2, 5.8, 4.0, 3.0);
+  crenellateRing(P.swTower[0], P.swTower[1], 4.2, topYOf(P.swTower[0],P.swTower[1],13.0), 14);
+  // short stub east of the SW tower, dashed on the plan: no evidence the wall went on along the south
+  curtain([P.swTower, P.sStub], 5.0, 0.7, {lost:true, seed:11, noCren:true});
+
+  // --- inner north curtain, immediately below the buildings, gate tower → keep (Ch.8) ---
+  curtain([[-42.6,-14.2], P.inA, P.inB, P.inC, P.inD, [50,-15.2], P.keepNE], INNER_H, 2.2, {seed:12, thick:1.2});
+
+  /* --- curved wall closing ward O around the west end (Ch.8: "a curved wall on
+     the west", with the gate tower): from the gate tower round the west to the
+     south face of the western wing. Radius read off Biller's plan. --- */
+  (function(){
+    const cu = -40.5, cv = -1.0, r = 10.5;
+    const a0 = Math.atan2(-13.6-cv, -46.5-cu), a1 = Math.atan2(9.6-cv, -36.5-cu);   // from the gate tower, through the west, to the south face
+    const pts = arcPoints(cu, cv, r, a0, a1 - 2*Math.PI, 40);
+    const d = resample(pts, 1.5);
+    wallRibbon('peak', d, CURVE_H, 1.8, false);
+    wallRibbon('ruin', d, 3.0, 1.8, ruinFn(3.0, 13, -0.7));
+    crenellatePolyline(d, (u,v)=>topYOf(u,v,CURVE_H), {mD:1.1, mW:1.0, gap:0.9, mH:1.2});
+  })();
+
+  // --- square structure east of the keep, on both plans (Biller, Pringle) — function unknown ---
+  box('peak', P.sq[0], P.sq[1], 9, 9, 6);
+  box('ruin', P.sq[0], P.sq[1], 9, 9, 1.6, 0.7);
 
   /* Stables recorded in the outer ward (MCP seasons 5–6): a double-arch system
-     on a row of stone piers under a flat, wooden-beamed roof, limestone flag
-     floor, direct parallel to the stables in the faubourg at 'Atlit. A lean-to
-     against the bailey's inner wall face, peak state only — nothing of the
-     timber roof would survive into the ruin. */
-  for (let i=0;i<3;i++){
-    const u = -63 + i*8;
-    box('peak', u, -13.5, 5.5, 5.5, 3.6);
-    cylinder('peak', u+2.7, -13.5, 0.35, 3.4, 8);
-  }
+     on a row of stone piers under a flat, wooden-beamed roof. Lean-to inside the
+     north curtain, peak state only — nothing of the timber roof survives. */
+  (function(){
+    const a = P.nWallC, b = P.nWallD, ang = segAngle(a,b), rot = -ang;
+    const c=Math.cos(rot), s=Math.sin(rot);
+    const t = 0.32, cu0 = a[0]+(b[0]-a[0])*t, cv0 = a[1]+(b[1]-a[1])*t;
+    let nx = -(b[1]-a[1]), nz = (b[0]-a[0]); const nl = Math.hypot(nx,nz)||1; nx/=nl; nz/=nl; if (nz < 0){ nx=-nx; nz=-nz; }
+    const cu = cu0 + 4.2*nx, cv = cv0 + 4.2*nz;                 // 4.2 m inside (south of) the wall
+    box('peak', cu, cv, 16, 5.5, 3.6, 0, rot);
+    for (let i=0;i<4;i++){ const x = -6+i*4; cylinder('peak', cu + x*c + 2.6*nx, cv - x*s + 2.6*nz, 0.35, 3.4, 8); }
+  })();
 
-  /* A short gate directly below the keep, on the castle's own south side —
-     distinct from the bailey, and much shorter than the wall this model
-     previously ran the full width of the site: neither source shows a long
-     southern wall, matching Ch.1's statement that none survives there. */
+  /* A short gate directly below the keep, on the castle's own south side. */
   [['peak',3.2],['ruin',2.0]].forEach(([st,hh])=>{
     wallPanel(st, 24, 11, 5.5, 1.5, hh, [{ x:0, y:0, w:1.6, h:2.4, kind:'arch' }], 0.15);
   });
 
-  // ROOFS — pitched, timber-framed, domestic ranges only
+  // ROOFS — pitched, timber-framed, domestic ranges only (Lindemann 1938; Ch.22 timber)
   gableRoof(9.75, 0.4, 48.1, 15.4, 17, 5.4, 0, 0.9, 1.5, rangeBase + 17);   // central range
   gableRoof(-25.05, -0.3, 24.5, 16.6, 32, 6.9, 0, 0.9, 1.5, wingBase + 32);  // western wing
 
   // CRENELLATIONS — flat fighting platforms on every defensive element
   parapetRect('peak', 40, 0, 15, 20, keepBase + 24, 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
   parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
-  crenellateRing(-45.5, -20.6, 7.0, topYOf(-45.5,-20.6,6.0), 20);             // round tower, above the talus
-  // crenellations only on the peak-state wall; the ruin has lost its parapet
-  // (bailey crenellation already applied above, alongside its wall)
+  crenellateRing(-45.5, -20.6, 7.0, topYOf(-45.5,-20.6,6.0), 20);             // revetment drum
 
   // labels (world anchors)
   labelDefs = [
     ['Keep', 45, 0, 26], ['Central range', 9.5, 0.5, 19], ['Western wing · Great Hall', -25, -0.5, 34],
-    ['Gate tower', -46, -17, 19], ['Outer bailey', -70, 0, 7], ['Round tower', -89, -1, 10], ['Rock-cut moats', 78, 0, 6]
+    ['Gate tower', -46, -17, 19], ['Ward O', -50, 0, 10], ['Outer ward', -30, -42, 5],
+    ['NE gate', P.neGate[0], P.neGate[1], 15], ['Round tower', P.neTower[0], P.neTower[1], 15],
+    ['SW tower', P.swTower[0], P.swTower[1], 15], ['Rock-cut moats', 78, 0, 6]
   ].map(([t,u,v,dy])=>{ const {e,n}=fromFrame(u,v); return { text:t, pos:new THREE.Vector3(e, groundAt(e,n)+CFG.offsetUp+dy, -n) }; });
-
-  /* Detached fragments standing clear of the main lines, as in the aerial views:
-     isolated tower stubs and lengths of the lower enceinte down the slope. */
-  [[-58,26,4.5,4.0,5.5],[10,26,5.0,4.5,4.0],[38,20,4.0,4.0,3.0],
-   [-8,-31,5.5,4.0,4.5],[26,-26,4.5,4.0,3.4]].forEach(([u,v,a,b,hh])=>
-    box('ruin', u, v, a, b, hh, 0.8));
-  wallPanel('ruin', 20, 25.5, 9.0, 1.7, 4.2, [{ x:0, y:0, w:1.6, h:2.4, kind:'arch' }], 0.15);
-  wallPanel('ruin', -20, 27.0, 8.0, 1.7, 3.8, [{ x:0, y:0, w:1.5, h:2.2, kind:'arch' }], -0.1);
 
   // MILL & GUESTHOUSE — Nahal Kziv valley (Pringle & Leach 1986; Ch.10)
   placeMill();
