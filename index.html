@@ -110,7 +110,7 @@ setTimeout(function(){
 
 <div id="status">Loading terrain and imagery…<small id="progress"></small></div>
 <div id="vert-badge">up / down mode · drag to raise and lower · space to exit</div>
-<div id="hint">drag to orbit · scroll to zoom · space toggles up / down mode</div>
+<div id="hint">drag to orbit · scroll to zoom · space toggles up / down mode · reset view to recentre</div>
 
 <div id="hud">
   <div id="switch" role="tablist" aria-label="Period">
@@ -124,6 +124,7 @@ setTimeout(function(){
 <div id="layers">
   <button class="btn on" id="b-img">Satellite imagery</button>
   <button class="btn on" id="b-lab">Labels</button>
+  <button class="btn" id="b-reset">Reset view</button>
   <button class="btn" id="b-cal">Calibrate position</button>
 </div>
 
@@ -161,10 +162,17 @@ setTimeout(function(){
 
 const CFG = {
   lat0: 33.04472, lon0: 35.22611,   // reference point (castle centre, Wikipedia figure)
-  half: 620,                        // half-size of the modelled area, metres
-  spacing: 3,                       // terrain grid spacing, metres
-  terrainZoom: 15,                  // max zoom for Terrain Tiles
-  imageryZoom: 18,                  // Esri World Imagery zoom
+  /* Terrain is drawn as two rings: a fine inner square around the castle and a
+     coarse outer square for the horizon. Covering 3.8 km of ground this way
+     needs about 34 imagery tiles, where the old single fine square covered only
+     1.2 km and needed 121 — so the view reaches much further AND loads faster. */
+  half: 420,                        // fine inner square, metres from centre
+  spacing: 3,                       // inner grid spacing, metres
+  outerHalf: 1900,                  // coarse outer square, metres from centre
+  outerSpacing: 26,                 // outer grid spacing, metres
+  terrainZoom: 15,                  // Terrain Tiles zoom (elevation)
+  imageryZoom: 17,                  // Esri imagery, inner
+  imageryZoomOuter: 14,             // Esri imagery, horizon
   axisBearing: 67,                  // degrees, from castle centre toward the keep
   offsetE: 0, offsetN: 0, offsetUp: 0,
   millE: -40, millN: 175,           // mill / guesthouse, local metres from reference
@@ -197,9 +205,9 @@ const view = document.getElementById('view');
 const scene = new THREE.Scene();
 const skyTop = new THREE.Color(0x5f8fb0), skyHor = new THREE.Color(0xeadcc2);
 scene.background = skyTop;
-scene.fog = new THREE.Fog(0xd9cbb0, 700, 1900);
+scene.fog = new THREE.Fog(0xd9cbb0, 900, 4200);
 
-const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 1, 6000);
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 1, 14000);
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -214,7 +222,7 @@ view.appendChild(renderer.domElement);
     vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
     fragmentShader:`varying vec3 vP; uniform vec3 top,bottom; void main(){ float t=smoothstep(-0.04,0.5,normalize(vP).y); gl_FragColor=vec4(mix(bottom,top,t),1.0); }`,
     side:THREE.BackSide, depthWrite:false, fog:false });
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(2800,24,16), mat));
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(5200,24,16), mat));
 })();
 
 /* ---------- lighting: real sun position and real weather at Montfort ----------
@@ -230,8 +238,13 @@ sun.shadow.bias = -0.0008;
 scene.add(sun);
 const hemi = new THREE.HemisphereLight(0xcfe0ef, 0x6e6250, 0.6);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight(0x9fb6d8, 0.0);
-moon.position.set(-300, 500, 260);
+const moon = new THREE.DirectionalLight(0xa8c0e0, 0.0);
+moon.position.set(-260, 620, 300);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024,1024);
+Object.assign(moon.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:100, far:2200 });
+moon.shadow.camera.updateProjectionMatrix();
+moon.shadow.bias = -0.0012;
 scene.add(moon);
 
 // Solar position (NOAA low-precision algorithm) — returns altitude and azimuth
@@ -309,13 +322,16 @@ function applyEnvironment(){
 
   if (night){
     sun.intensity = 0;
-    moon.intensity = 0.18;
-    hemi.intensity = 0.14;
-    hemi.color.setHex(0x2c3d55); hemi.groundColor.setHex(0x14171c);
+    // A ruin has nobody to light it: at night it is lit only by the moon. The
+    // inhabited castle keeps its lamps.
+    const lit = (currentEra === 0);
+    moon.intensity = lit ? 0.18 : 0.55;      // half-moon on the empty ruin
+    hemi.intensity = lit ? 0.14 : 0.30;
+    hemi.color.setHex(lit ? 0x2c3d55 : 0x3a4c68); hemi.groundColor.setHex(0x14171c);
     skyTop.setHex(0x0a1220); skyHor.setHex(0x1d2634);
     scene.fog.color.setHex(0x141b26);
-    scene.fog.near = 260; scene.fog.far = 1200;
-    lamps.visible = true;
+    scene.fog.near = 260; scene.fog.far = 2600;
+    lamps.visible = lit;
   } else {
     const low = Math.max(0, Math.min(1, (10-deg)/12));   // warm, reddened near the horizon
     const warm = new THREE.Color(0xfff1d6).lerp(new THREE.Color(0xff9d52), low*0.85);
@@ -329,9 +345,9 @@ function applyEnvironment(){
     skyTop.copy(clearTop).lerp(greyTop, s.grey).lerp(new THREE.Color(0xd8a273), low*0.5);
     skyHor.copy(clearHor).lerp(greyHor, s.grey).lerp(new THREE.Color(0xf0b382), low*0.6);
     scene.fog.color.copy(skyHor);
-    scene.fog.near = 700 - s.haze*520;
-    scene.fog.far  = 1900 - s.haze*1250;
-    lamps.visible = dusk && deg < 4;
+    scene.fog.near = 1400 - s.haze*1000;
+    scene.fog.far  = 4400 - s.haze*2600;
+    lamps.visible = (currentEra === 0) && dusk && deg < 4;
   }
   scene.background = skyTop;
 
@@ -356,9 +372,9 @@ async function loadWeather(){
 
 /* ---------- state ---------- */
 let elevRaster = null;   // {data, w, h, x0, y0, z}
-let imgRaster = null;    // {canvas, x0, y0, w, h, z}
+let imgRaster = null, imgRasterOuter = null;   // {canvas, x0, y0, w, h, z}
 let elev0 = 0;
-let terrainMesh = null, terrainMatImg = null, terrainMatFlat = null;
+let terrainMeshes = [], terrainMatFlat = null;
 let liveTerrain = false, liveImagery = false;
 const castle = new THREE.Group(); scene.add(castle);
 const groups = { peak: new THREE.Group(), ruin: new THREE.Group() };
@@ -376,8 +392,8 @@ function loadImage(url, ms){
     img.src = url;
   });
 }
-async function loadRaster(urlFn, z, label){
-  const d = CFG.half;
+async function loadRaster(urlFn, z, label, d){
+  d = d || CFG.half;
   const lonMin = CFG.lon0 - d/M_LON, lonMax = CFG.lon0 + d/M_LON;
   const latMin = CFG.lat0 - d/M_LAT, latMax = CFG.lat0 + d/M_LAT;
   const x0 = Math.floor(lonToX(lonMin,z)), x1 = Math.floor(lonToX(lonMax,z));
@@ -398,7 +414,7 @@ async function loadRaster(urlFn, z, label){
 }
 
 async function loadTerrain(){
-  const r = await loadRaster(TERRAIN_URL, CFG.terrainZoom, 'terrain');
+  const r = await loadRaster(TERRAIN_URL, CFG.terrainZoom, 'terrain', CFG.outerHalf);
   const px = r.ctx.getImageData(0,0,r.w,r.h).data;
   const data = new Float32Array(r.w*r.h);
   for (let i=0, j=0; i<data.length; i++, j+=4) data[i] = (px[j]*256 + px[j+1] + px[j+2]/256) - 32768;
@@ -406,9 +422,14 @@ async function loadTerrain(){
   liveTerrain = true;
 }
 async function loadImagery(){
-  const r = await loadRaster(IMAGERY_URL, CFG.imageryZoom, 'imagery');
+  const r = await loadRaster(IMAGERY_URL, CFG.imageryZoom, 'imagery', CFG.half);
   r.ctx.getImageData(0,0,1,1);           // throws if the canvas is tainted (no CORS) — then no drape
   imgRaster = r; liveImagery = true;
+  try {
+    const o = await loadRaster(IMAGERY_URL, CFG.imageryZoomOuter, 'horizon', CFG.outerHalf);
+    o.ctx.getImageData(0,0,1,1);
+    imgRasterOuter = o;
+  } catch(err){ console.warn('Horizon imagery unavailable:', err); }
 }
 
 /* ---------- elevation sampling ---------- */
@@ -456,46 +477,61 @@ function groundAt(e,n){
 
 /* ---------- terrain mesh ---------- */
 function buildTerrain(){
-  if (terrainMesh){ scene.remove(terrainMesh); terrainMesh.geometry.dispose(); }
-  const N = Math.round(2*CFG.half/CFG.spacing)+1;
+  terrainMeshes.forEach(m=>{ scene.remove(m); m.geometry.dispose(); });
+  terrainMeshes = [];
+  if (!terrainMatFlat) terrainMatFlat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0 });
+  buildTerrainRing(CFG.half, CFG.spacing, imgRaster, 0);          // fine, around the castle
+  buildTerrainRing(CFG.outerHalf, CFG.outerSpacing, imgRasterOuter, -0.8);  // coarse, to the horizon
+}
+
+/* One square of terrain. The coarse ring is dropped slightly so the fine ring
+   always wins where they overlap, instead of the two z-fighting. */
+function buildTerrainRing(half, spacing, raster, yOffset){
+  const N = Math.round(2*half/spacing)+1;
   const pos = new Float32Array(N*N*3), uv = new Float32Array(N*N*2), col = new Float32Array(N*N*3);
   const idx = [];
-  const cRock = new THREE.Color(0x8b7b62), cGrass = new THREE.Color(0x6f8250), cDry = new THREE.Color(0x9b9a62), cMaquis = new THREE.Color(0x4d6a3e);
+  const cRock = new THREE.Color(0x8b7b62), cGrass = new THREE.Color(0x6f8250),
+        cDry  = new THREE.Color(0x9b9a62), cMaquis = new THREE.Color(0x4d6a3e);
   for (let j=0;j<N;j++) for (let i=0;i<N;i++){
-    const e = -CFG.half + i*CFG.spacing, n = CFG.half - j*CFG.spacing;
-    const y = groundAt(e,n);
+    const e = -half + i*spacing, n = half - j*spacing;
     const k = j*N+i;
-    pos[k*3]=e; pos[k*3+1]=y; pos[k*3+2]=-n;
-    if (imgRaster){
+    pos[k*3]=e; pos[k*3+1]=groundAt(e,n)+yOffset; pos[k*3+2]=-n;
+    if (raster){
       const p = toLatLon(e,n);
-      uv[k*2]   = (lonToX(p.lon,imgRaster.z)-imgRaster.x0)*256/imgRaster.w;
-      uv[k*2+1] = 1 - (latToY(p.lat,imgRaster.z)-imgRaster.y0)*256/imgRaster.h;
+      uv[k*2]   = (lonToX(p.lon,raster.z)-raster.x0)*256/raster.w;
+      uv[k*2+1] = 1 - (latToY(p.lat,raster.z)-raster.y0)*256/raster.h;
     } else { uv[k*2]=i/(N-1); uv[k*2+1]=1-j/(N-1); }
-    // flat colouring for the no-imagery case: maquis on the slopes, dry grass on the ridge
-    const s = Math.abs(groundAt(e+CFG.spacing,n)-groundAt(e-CFG.spacing,n)) + Math.abs(groundAt(e,n+CFG.spacing)-groundAt(e,n-CFG.spacing));
-    const slope = Math.min(1, s/(4*CFG.spacing)*1.4);
-    const c = cDry.clone().lerp(cGrass, 0.5+0.3*noise(e,n,2)).lerp(cMaquis, Math.min(0.7, slope*0.9+0.2*noise(e,n,7))).lerp(cRock, Math.max(0, slope-0.55)*1.3);
+    const sl = Math.abs(groundAt(e+spacing,n)-groundAt(e-spacing,n))
+             + Math.abs(groundAt(e,n+spacing)-groundAt(e,n-spacing));
+    const slope = Math.min(1, sl/(4*spacing)*1.4);
+    const c = cDry.clone().lerp(cGrass, 0.5+0.3*noise(e,n,2))
+                  .lerp(cMaquis, Math.min(0.7, slope*0.9+0.2*noise(e,n,7)))
+                  .lerp(cRock, Math.max(0, slope-0.55)*1.3);
     col[k*3]=c.r; col[k*3+1]=c.g; col[k*3+2]=c.b;
   }
-  for (let j=0;j<N-1;j++) for (let i=0;i<N-1;i++){ const a=j*N+i, b=a+1, c=a+N, d=c+1; idx.push(a,c,b, b,c,d); }
+  for (let j=0;j<N-1;j++) for (let i=0;i<N-1;i++){
+    const a=j*N+i, b=a+1, c2=a+N, d=c2+1; idx.push(a,c2,b, b,c2,d);
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos,3));
   g.setAttribute('uv', new THREE.BufferAttribute(uv,2));
   g.setAttribute('color', new THREE.BufferAttribute(col,3));
   g.setIndex(idx); g.computeVertexNormals();
 
-  if (!terrainMatFlat) terrainMatFlat = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.95, metalness:0 });
-  if (imgRaster && !terrainMatImg){
+  let mat = terrainMatFlat;
+  if (raster && showImagery){
     try {
-      const tex = new THREE.CanvasTexture(imgRaster.canvas);
-      tex.encoding = THREE.sRGBEncoding; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const tex = new THREE.CanvasTexture(raster.canvas);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
       tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-      terrainMatImg = new THREE.MeshStandardMaterial({ map:tex, roughness:0.95, metalness:0 });
-    } catch(err){ console.warn('Imagery texture unavailable:', err); terrainMatImg = null; liveImagery = false; }
+      mat = new THREE.MeshStandardMaterial({ map:tex, roughness:0.95, metalness:0 });
+      raster.mat = mat;
+    } catch(err){ console.warn('Imagery texture unavailable:', err); }
   }
-  terrainMesh = new THREE.Mesh(g, (showImagery && terrainMatImg) ? terrainMatImg : terrainMatFlat);
-  terrainMesh.receiveShadow = true;
-  scene.add(terrainMesh);
+  const mesh = new THREE.Mesh(g, mat);
+  mesh.receiveShadow = (yOffset === 0);
+  scene.add(mesh); terrainMeshes.push(mesh);
 }
 
 /* ---------- buildings ---------- */
@@ -723,6 +759,52 @@ function archArcade(state, u, v, su, thick, wallH, count, archW, archH, sill, ro
      the north wall, and large windows between the pilasters of the south wall
      (Ch.8, Plates 8.4–8.7)
    • machicolations over gates C, D and the top floor of gate tower E (Ch.9)      */
+/* Two-centred (Gothic) arch, struck from two centres on the springing line.
+   The sources are explicit that the upper storeys were Gothic — "various types
+   of Gothic rib vaulting" over the central building's domestic apartments
+   (Ch.8), and the hall below the castle is described as "distinct archaic
+   Gothic style" with ogival ribs (Ch.10) — and pointed heads are visible in the
+   standing ruin today. Round heads are kept only where the evidence shows them,
+   notably the gate passage on the measured drawing and the barrel-vault mouths. */
+/* Garderobe: a corbelled latrine shaft projecting from a wall face. Ch.9 records
+   a latrine chute descending on the southern side of the western building, and a
+   second east of it below the vestibule — both entirely absent until now. */
+function garderobe(state, u, v, side, faceRot, sillY, h){
+  const rot = faceRot||0, c=Math.cos(rot), s=Math.sin(rot);
+  const w=1.5, d=1.3;
+  const off = side*(d/2);
+  const wu = u - off*s, wv = v + off*c;
+  const mat = stoneMaterial(state), em = state==='peak'?edgePeak:edgeRuin;
+  const g = new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Mesh(g, mat); m.castShadow=m.receiveShadow=true;
+  m.position.set(wu, sillY + h/2, wv); m.rotation.y = rot;
+  groups[state].add(m);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(g,22), em);
+  e.position.copy(m.position); e.rotation.y = rot; groups[state].add(e);
+  // corbels carrying it
+  for (let i=-1;i<=1;i+=2){
+    const cg = new THREE.BoxGeometry(0.35, 0.4, d*0.9);
+    const cu = wu + (i*0.55)*c, cv = wv + (i*0.55)*s;
+    const cm = new THREE.Mesh(cg, mat); cm.castShadow=true;
+    cm.position.set(cu, sillY-0.2, cv); cm.rotation.y = rot;
+    groups[state].add(cm);
+  }
+}
+
+function holePointed(x, y, w, h){
+  const p = new THREE.Path();
+  const r = w*0.75;                                  // r > w/2 gives the point
+  const rise = Math.sqrt(Math.max(1e-4, r*r - (r-w/2)*(r-w/2)));
+  const spring = y + Math.max(0.05, h - rise);
+  const cxR = x + r, cxL = x + w - r, apex = x + w/2;
+  p.moveTo(x, y);
+  p.lineTo(x, spring);
+  p.absarc(cxR, spring, r, Math.PI, Math.atan2(rise, apex-cxR), true);
+  p.absarc(cxL, spring, r, Math.atan2(rise, apex-cxL), 0, true);
+  p.lineTo(x+w, y);
+  p.lineTo(x, y);
+  return p;
+}
 function holeRect(x, y, w, h){
   const p = new THREE.Path();
   p.moveTo(x,y); p.lineTo(x+w,y); p.lineTo(x+w,y+h); p.lineTo(x,y+h); p.lineTo(x,y);
@@ -753,8 +835,9 @@ function wallPanel(state, u, v, su, thick, wallH, openings, rot, sink){
   shape.lineTo(-su/2,wallH); shape.lineTo(-su/2,-sink);
   (openings||[]).forEach(o=>{
     const x = o.x - o.w/2;
-    shape.holes.push(o.kind==='arch' ? holeArch(x,o.y,o.w,o.h)
-                   : o.kind==='slit' ? holeSlit(x,o.y,o.w,o.h)
+    shape.holes.push(o.kind==='arch'    ? holeArch(x,o.y,o.w,o.h)
+                   : o.kind==='gothic'  ? holePointed(x,o.y,o.w,o.h)
+                   : o.kind==='slit'    ? holeSlit(x,o.y,o.w,o.h)
                    : holeRect(x,o.y,o.w,o.h));
   });
   const geo = new THREE.ExtrudeGeometry(shape, { depth:thick, bevelEnabled:false, curveSegments:14 });
@@ -1086,8 +1169,8 @@ function placeBuildings(){
     { x: 3.7,  y:3.4,  w:1.9, h:2.6, kind:'rect' },
     { x: 11.1, y:3.4,  w:1.9, h:2.6, kind:'rect' },
     { x: 18.5, y:3.4,  w:1.9, h:2.6, kind:'rect' },
-    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'arch', glass:true },
-    { x:-7.4, y:10.4, w:1.7, h:3.0, kind:'arch', glass:true },
+    { x:-14.8, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:-7.4, y:10.4, w:1.7, h:3.0, kind:'gothic', glass:true },
     { x: 0,    y:10.4, w:1.7, h:3.0, kind:'arch' },
     { x: 7.4,  y:10.4, w:1.7, h:3.0, kind:'arch' },
     { x: 14.8, y:10.4, w:1.7, h:3.0, kind:'arch' },
@@ -1107,6 +1190,7 @@ function placeBuildings(){
   box('ruin', 9.5, -5.7, 46, 2.4, 2.6, 0.7);     // north wall, "hardly surviving above bedrock" in places
   box('ruin', 9.5, 6.3, 46, 2.0, 4.0, 0.7);      // south wall
   box('ruin', -13, 0.5, 2.0, 12, 3.5, 0.6);      // west dividing wall W(A)2
+  garderobe('peak', -10.5, 8.2, 1, 0, rangeBase + 9.5, 6.5);  // second chute, east of the first (Ch.9)
   for (let i=0;i<6;i++) box('ruin', -8+i*7.2, 0.5, 1.3, 1.3, 2.4, 0.3);  // pier stubs
   unpin();
 
@@ -1125,34 +1209,47 @@ function placeBuildings(){
   ];
   // north face, peak: vault ends below, Great Hall windows, apartments above
   wallPanel('peak', -25, -7.4, 23, 2.4, 32, vaultArch.concat([
-    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:0, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
-    { x:0, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
-    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true }
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true }
   ]), 0);
   // south face, peak: blank support wall below, hall and apartments lit above
   wallPanel('peak', -25, 6.9, 23, 2.2, 32, [
-    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:0, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'arch', glass:true },
-    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
-    { x:0, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true },
-    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'arch', glass:true }
+    { x:-6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:0, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:6.5, y:12.5, w:2.2, h:4.2, kind:'gothic', glass:true },
+    { x:-6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:0, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true },
+    { x:6.5, y:22.5, w:1.7, h:3.0, kind:'gothic', glass:true }
   ], 0);
   // west end wall, peak — the wing's gable end also had to be lit
   wallPanel('peak', -36.2, -0.3, 16.8, 2.2, 32, [
-    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'arch', glass:true },
+    { x:-3.6, y:12.8, w:1.8, h:3.4, kind:'gothic', glass:true },
     { x: 3.6, y:12.8, w:1.8, h:3.4, kind:'arch' },
-    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'arch', glass:true },
+    { x:-3.6, y:22.5, w:1.5, h:2.6, kind:'gothic', glass:true },
     { x: 3.6, y:22.5, w:1.5, h:2.6, kind:'arch' },
     { x: 0,   y:5.0,  w:0.45, h:2.0, kind:'slit' }
   ], Math.PI/2);
   // ruin: the two vaults are the one part of the west range still standing (Ch.4)
   box('ruin', -25, 0.8, 23, 11.0, 7.2, 0.35);                    // vault body, set back
-  wallPanel('ruin', -25, -7.4, 23, 2.4, 8.6, vaultArch, 0);      // the surviving arch pair
+  /* In the photograph the west range still stands well above the vault mouths:
+     the north wall survives to roughly Great Hall level, pierced by large
+     arched openings, with a ragged crown. That upstanding wall is the single
+     most recognisable thing about the ruin and was missing here. */
+  wallPanel('ruin', -25, -7.4, 23, 2.4, 15.0, vaultArch.concat([
+    { x:-6.6, y:9.2, w:3.2, h:4.6, kind:'gothic' },
+    { x: 0,   y:9.2, w:3.2, h:4.6, kind:'gothic' },
+    { x: 6.6, y:9.2, w:3.2, h:4.6, kind:'gothic' }
+  ]), 0);
+  // ragged crown on the surviving wall head
+  [-9.5,-5,-0.5,4,8.5].forEach((x,i)=>
+    box('ruin', -25+x, -7.4, 3.2, 2.4, 15.0 + [0.9,0.3,1.3,0.5,1.0][i], 0.8));
   box('ruin', -25, 6.9, 23, 2.0, 10.5, 0.45);                    // south support wall stub
+  garderobe('peak', -25, 8.0, 1, 0, wingBase + 13.5, 9.0);   // latrine chute, south of the west range (Ch.9)
+  garderobe('ruin', -25, 8.0, 1, 0, wingBase + 6.0, 3.0);
   cylinder('ruin', -25, -0.5, 0.9, 3.8, 8);                      // octagonal pier in situ (Ch.9, Ch.20)
   unpin();
 
@@ -1198,8 +1295,13 @@ function placeBuildings(){
   // ROUND TOWER on the southern outer enceinte — a broad drum with a strongly
   // flared talus, built of very large rough blocks; it reads far wider than tall
   // in the standing remains.
-  roundTower('peak', -20, 20, 5.2, 7.6, 5.0, 6.0);
-  roundTower('ruin', -20, 20, 5.2, 7.6, 4.4, 1.4);
+  /* The semi-circular tower stands on the NORTHERN outer wall close to the gate
+     tower — Ch.5 locates a surviving stretch of curtain "almost 15 m west of the
+     semi-circular tower" on that side, and every photograph shows the broad
+     rough-block drum sitting directly below the gate tower. It had been placed
+     on the southern enceinte. */
+  roundTower('peak', -41, -23.2, 5.4, 7.8, 5.2, 6.2);
+  roundTower('ruin', -41, -23.2, 5.4, 7.8, 4.6, 2.2);
 
   // OUTER ENCEINTE — down the north flank, round the west end, back along the south;
   // subdivided until it reads as a true curve following the spur, not a faceted line
@@ -1238,6 +1340,23 @@ function placeBuildings(){
     }
   });
 
+  /* POSTERNS AND SECONDARY GATES. Four or five gates are identifiable besides
+     the tower (Ch.9), and a postern survives at the north-west corner of the
+     outer wall with pale limestone voussoirs over grey limestone lintels
+     (Ch.13). The enceinte had been a blank ring until now. */
+  [['peak',5.5],['ruin',4.2]].forEach(([st,hh])=>{
+    // gate C — two barrel-vaulted storeys on the northern slope
+    wallPanel(st, -30, -22.3, 6.0, 1.8, hh, [{ x:0, y:0, w:2.2, h:3.0, kind:'arch' }], -0.06);
+    // gate D — outer wall near where it turns south, preserved to full height
+    wallPanel(st, -57.5, -6.0, 5.5, 1.8, hh, [{ x:0, y:0, w:2.0, h:2.8, kind:'arch' }], Math.PI/2);
+    // north-west postern
+    wallPanel(st, -52.5, -17.5, 4.5, 1.8, hh, [{ x:0, y:0, w:1.2, h:2.1, kind:'arch' }], -0.5);
+    // southern postern onto the outer ward
+    wallPanel(st,  6.0,  17.6, 4.5, 1.8, hh, [{ x:0, y:0, w:1.2, h:2.1, kind:'arch' }], 0.1);
+  });
+  machicolation('peak', -30, -22.3, 4.2, topYOf(-30,-22.3,5.5), -0.06, -1);      // over gate C
+  machicolation('peak', -57.5, -6.0, 4.0, topYOf(-57.5,-6.0,5.5), Math.PI/2, -1); // over gate D
+
   // ROOFS — pitched, timber-framed, domestic ranges only
   gableRoof(9.75, 0.4, 48.1, 15.4, 17, 5.4, 0, 0.9, 1.5, rangeBase + 17);   // central range
   gableRoof(-25.05, -0.3, 24.5, 16.6, 32, 6.9, 0, 0.9, 1.5, wingBase + 32);  // western wing
@@ -1245,7 +1364,7 @@ function placeBuildings(){
   // CRENELLATIONS — flat fighting platforms on every defensive element
   parapetRect('peak', 40, 0, 15, 20, keepBase + 24, 0, {mW:1.15, gap:1.0, mD:1.35, mH:1.45}); // keep
   parapetRect('peak', gU, gV, gW, gD, gateBase + 17, gRot, {mW:0.95, gap:0.85, mD:0.95, mH:1.3});  // gate tower
-  crenellateRing(-20, 20, 4.2, topYOf(-20,20,4.5), 14);                      // round tower, above the talus
+  crenellateRing(-41, -23.2, 5.4, topYOf(-41,-23.2,5.2), 16);                 // round tower, above the talus
   crenellatePolyline(outer, (u,v)=>topYOf(u,v,5.5), {mD:1.3});                // outer enceinte
   crenellateEdge(-16.2,-19.4, 4.2,-19.4, topYOf(-6,-19.4,9.0), {mD:1.2});     // the preserved 9 m stretch
 
@@ -1254,6 +1373,14 @@ function placeBuildings(){
     ['Keep', 45, 0, 26], ['Central range', 9.5, 0.5, 19], ['Western wing · Great Hall', -25, -0.5, 34],
     ['Gate tower', -46, -17, 19], ['Outer wall', -50, 8, 8], ['Rock-cut moats', 78, 0, 6]
   ].map(([t,u,v,dy])=>{ const {e,n}=fromFrame(u,v); return { text:t, pos:new THREE.Vector3(e, groundAt(e,n)+CFG.offsetUp+dy, -n) }; });
+
+  /* Detached fragments standing clear of the main lines, as in the aerial views:
+     isolated tower stubs and lengths of the lower enceinte down the slope. */
+  [[-58,26,4.5,4.0,5.5],[10,26,5.0,4.5,4.0],[38,20,4.0,4.0,3.0],
+   [-8,-31,5.5,4.0,4.5],[26,-26,4.5,4.0,3.4]].forEach(([u,v,a,b,hh])=>
+    box('ruin', u, v, a, b, hh, 0.8));
+  wallPanel('ruin', 20, 25.5, 9.0, 1.7, 4.2, [{ x:0, y:0, w:1.6, h:2.4, kind:'arch' }], 0.15);
+  wallPanel('ruin', -20, 27.0, 8.0, 1.7, 3.8, [{ x:0, y:0, w:1.5, h:2.2, kind:'arch' }], -0.1);
 
   // MILL & GUESTHOUSE — Nahal Kziv valley (Pringle & Leach 1986; Ch.10)
   placeMill();
@@ -1313,7 +1440,14 @@ function updateLabels(){
 /* ---------- camera: orbit + zoom ---------- */
 const target = new THREE.Vector3(0, 8, 0);
 let radius = 330, theta = 2.35, phi = 1.02;
-const R_MIN = 60, R_MAX = 1500, PHI_MIN = 0.3, PHI_MAX = 1.5;
+const HOME = { radius:330, theta:2.35, phi:1.02, ty:8 };
+function resetView(){
+  radius = HOME.radius; theta = HOME.theta; phi = HOME.phi;
+  target.set(0, HOME.ty, 0);
+  setVertMode(false);
+  updateCamera();
+}
+const R_MIN = 40, R_MAX = 3000, PHI_MIN = 0.3, PHI_MAX = 1.5;
 function updateCamera(){
   camera.position.set(target.x + radius*Math.sin(phi)*Math.sin(theta), target.y + radius*Math.cos(phi), target.z + radius*Math.sin(phi)*Math.cos(theta));
   camera.lookAt(target);
@@ -1393,14 +1527,16 @@ function setEra(i){
     b.classList.toggle('on', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  if (typeof applyEnvironment === 'function') applyEnvironment();
 }
 document.querySelectorAll('.opt').forEach(b=>b.addEventListener('click', ()=>setEra(+b.dataset.i)));
 
 /* ---------- layers + calibration ---------- */
 let showImagery = true, showLabels = true;
 const bImg = document.getElementById('b-img'), bLab = document.getElementById('b-lab'), bCal = document.getElementById('b-cal');
-bImg.addEventListener('click', ()=>{ showImagery=!showImagery; bImg.classList.toggle('on', showImagery); if(terrainMesh) terrainMesh.material = (showImagery && terrainMatImg) ? terrainMatImg : terrainMatFlat; });
+bImg.addEventListener('click', ()=>{ showImagery=!showImagery; bImg.classList.toggle('on', showImagery); buildTerrain(); });
 bLab.addEventListener('click', ()=>{ showLabels=!showLabels; bLab.classList.toggle('on', showLabels); });
+document.getElementById('b-reset').addEventListener('click', resetView);
 bCal.addEventListener('click', ()=>{ const c=document.getElementById('calib'); const on=!c.classList.contains('show'); c.classList.toggle('show', on); bCal.classList.toggle('on', on); document.getElementById('attrib').classList.toggle('hide', on); });
 
 const sliders = [['c-rot','o-rot','axisBearing'],['c-e','o-e','offsetE'],['c-n','o-n','offsetN'],['c-up','o-up','offsetUp'],['c-me','o-me','millE'],['c-mn','o-mn','millN']];
